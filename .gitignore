@@ -1,0 +1,75 @@
+# ---------------------------------------------------------------------------
+# Secrets — NEVER commit. .gitignore is a safety net, not the policy.
+# The policy is AGENTS.md §8 and docs/signer-and-key-management.md §5,
+# and it is enforced by a CI secret scanner as well as by this file.
+# ---------------------------------------------------------------------------
+*.env
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.keypair
+*.keypair.json
+id.json
+**/keys/
+**/secrets/
+*.mnemonic
+*credentials*
+!**/docs/**
+
+# Rust
+/target/
+**/*.rs.bk
+*.pdb
+
+# Node / TypeScript
+node_modules/
+dist/
+build/
+.next/
+out/
+*.tsbuildinfo
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/releases
+
+# Databases and local service state
+*.sqlite
+*.sqlite3
+pgdata/
+redis-data/
+grafana-data/
+prometheus-data/
+
+# Local cluster state
+test-ledger/
+.surfpool/
+surfpool-ledger/
+*.so
+
+# Test and benchmark output (results that must be committed live in benchmarks/*.json)
+/tmp/
+coverage/
+lcov.info
+flamegraph.svg
+perf.data*
+*.profraw
+
+# Fixture working directories — the committed corpus lives in infra/fixtures/
+scratch/
+.scratch/
+
+# Editors and OS
+.vscode/
+.idea/
+.claude/settings.local.json
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
