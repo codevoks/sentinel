@@ -63,7 +63,7 @@ rounded up.
 | `sentinel-db::partitions` — partition automation + low-partition alert | ✅ | ✅ | ✅ | ✅ | ⬜ |
 | `sentinel-db::{enums,tables,queries}` — typed access layer | ✅ **complete — every canonical table** (closure fix, 2026-09-18) | ✅ | ✅ | ✅ | ⬜ |
 | `sentinel-jobs` — Postgres job queue (claim/lease/renew/release/quarantine, 16-worker concurrency) | ✅ | ✅ | ✅ | ✅ | ⬜ |
-| `sentinel-rpc` — `RpcProvider`/`RpcPool`, capabilities, budget, breaker, freshness, WS manager, broadcast, fixtures, fault injection, HTTP provider | ✅ | ✅ (46 tests: 28 unit + 5 FI-acceptance + 1 property + 1 real-Postgres persistence + 8 real-Surfpool probe + 3 real-Surfpool pool/WS integration) | ✅ (`crates/bins/sentinel-rpc-demo`, run live against real Surfpool, metrics visible via Grafana's own Prometheus datasource) | ✅ | ⬜ |
+| `sentinel-rpc` — `RpcProvider`/`RpcPool`, capabilities, budget, breaker, freshness, WS manager, broadcast, fixtures, fault injection, HTTP provider | ✅ | ✅ (48 tests: 28 unit + 5 FI-acceptance + 2 broadcast/RT-5 acceptance + 1 property + 1 real-Postgres persistence + 8 real-Surfpool probe + 3 real-Surfpool pool/WS integration) | ✅ (`crates/bins/sentinel-rpc-demo`, run live against real Surfpool, metrics visible via Grafana's own Prometheus datasource) | ✅ | ⬜ |
 | `bins/sentinel-rpc-demo` — Phase 3 live demo CLI | ✅ | — (a demo, not a test target) | ✅ | ✅ | ⬜ |
 | `sentinel-ingest` — raw boundary, checkpoints, gaps | ⬜ empty skeleton | ⬜ | ⬜ | ✅ | ⬜ |
 | `sentinel-normalize` — Solana primitives | ⬜ empty skeleton | ⬜ | ⬜ | ✅ | ⬜ |
@@ -105,7 +105,7 @@ correct; a crate with a fake `todo!()` pipeline is not").
 | Phase 1 TypeScript tests | — | **1** (harness proof; rest are empty-skeleton packages) | **1** |
 | RPC invariants (`RPC-01..RPC-10`) | 10 | **10** | **10** (see Phase 3 evidence §"RPC-01..RPC-10 acceptance mapping") |
 | `P-BOUND-1` (bounded retry property) | 1 | **1** (hand-rolled deterministic generator — see Phase 3 evidence for why `proptest` was not added) | **1** |
-| Phase 3 `sentinel-rpc` tests | — | **46** (28 unit + 5 FI-acceptance + 1 property + 1 real-Postgres persistence + 8 real-Surfpool capability probe + 3 real-Surfpool pool/WS integration) | **46** |
+| Phase 3 `sentinel-rpc` tests | — | **48** (28 unit + 5 FI-acceptance + 2 broadcast/RT-5 acceptance + 1 property + 1 real-Postgres persistence + 8 real-Surfpool capability probe + 3 real-Surfpool pool/WS integration) | **48** |
 | Benchmarks | 0 measured | 0 | — |
 
 **No performance number has been produced or claimed.** Phase 14 is the first phase permitted to state
@@ -1068,9 +1068,17 @@ machine) was found and fixed by this real run, not merely by inspection.
 ### Broadcast
 
 `RpcPool::broadcast` fans out concurrently via `futures_util::future::join_all` to every eligible
-(`Closed`-breaker, `Execution`-configured) provider — never a sequential try-A-then-B. Covered
-structurally by the same selection/eligibility tests as the retry path; RT-5 is implemented as a
-distinct code path (no `for` loop with early return over providers).
+(`Closed`-breaker, `Execution`-configured) provider — never a sequential try-A-then-B. Dedicated
+acceptance tests (`crates/sentinel-rpc/tests/broadcast.rs`, added after an initial gap was caught during
+this phase's own final acceptance audit — implementing `broadcast()` without a broadcast-specific test
+is exactly the kind of gap AGENTS.md §9 exists to catch):
+`broadcast_fans_out_to_every_eligible_provider_and_survives_one_failure` proves all 3 configured
+providers are genuinely invoked (`FixtureProvider::call_count() == 1` on the provider that succeeds
+*after* another already did — a sequential "stop on first success" implementation would leave this at
+0) and that one provider's real failure does not prevent the other two from succeeding;
+`broadcast_excludes_an_open_provider_and_all_failures_surface_as_overall_failure` proves an `Open`
+provider is never even attempted, and that if the only eligible provider also fails, the outcome is
+loudly `all_failed()`, not a false success.
 
 ### Security
 
@@ -1193,8 +1201,8 @@ $ cargo test --workspace --offline (with real Postgres + Surfpool running)
   sentinel-core: 4 passed
   sentinel-db (unit + adversarial + closure_fix_coverage + coverage_audit + property_tests): 10+17+8+2+2 = 39 passed
   sentinel-jobs concurrency: 3 passed
-  sentinel-rpc (unit + adversarial_campaign + property_bound + provider_health_persistence
-    + surfpool_capability_probe + surfpool_pool_integration): 28+5+1+1+8+3 = 46 passed
+  sentinel-rpc (unit + adversarial_campaign + broadcast + property_bound + provider_health_persistence
+    + surfpool_capability_probe + surfpool_pool_integration): 28+5+2+1+1+8+3 = 48 passed
   sentinel-telemetry: 2 passed
   → 0 failed across the entire workspace
 ```
