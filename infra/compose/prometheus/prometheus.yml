@@ -13,3 +13,13 @@ scrape_configs:
   - job_name: prometheus
     static_configs:
       - targets: ["localhost:9090"]
+
+  # Phase 3 demo (docs/phases/phase-03-rpc.md §26): the `sentinel-rpc-demo`
+  # CLI runs on the host (`cargo run`, not containerized — it is a
+  # throwaway demo binary, not a long-running service), so Prometheus
+  # reaches it via Docker Desktop's `host.docker.internal` rather than the
+  # Compose network. This target is intentionally absent from Grafana's
+  # provisioned dashboards; the demo is observed ad hoc while it runs.
+  - job_name: sentinel-rpc-demo
+    static_configs:
+      - targets: ["host.docker.internal:9464"]

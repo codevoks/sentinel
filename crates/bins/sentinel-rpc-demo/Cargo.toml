@@ -1,0 +1,18 @@
+[package]
+name = "sentinel-rpc-demo"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "Phase 3 demo (docs/phases/phase-03-rpc.md §26): fetches blocks through RpcPool while faults are injected live, with metrics exported for Grafana."
+
+[dependencies]
+sentinel-core = { workspace = true }
+sentinel-rpc = { workspace = true }
+sentinel-telemetry = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time", "signal", "net", "io-util"] }
+opentelemetry = { workspace = true }
+reqwest = { version = "0.12.28", default-features = false, features = ["json", "rustls-tls"] }
+serde_json = { workspace = true }

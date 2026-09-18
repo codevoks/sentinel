@@ -17,6 +17,7 @@ members = [
   "crates/sentinel-geyser",
   "crates/bins/sentinel-indexer",
   "crates/bins/sentinel-backfill",
+  "crates/bins/sentinel-rpc-demo",
 ]
 
 [workspace.package]
