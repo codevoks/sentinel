@@ -10,6 +10,12 @@ use std::time::Duration;
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use sqlx::PgPool;
 
+pub mod enums;
+pub mod numeric;
+pub mod partitions;
+pub mod queries;
+pub mod tables;
+
 /// The single source of schema truth (`docs/architecture.md` §4).
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("../../infra/migrations");
 

@@ -2263,11 +2263,16 @@ dependencies = [
 name = "sentinel-db"
 version = "0.1.0"
 dependencies = [
+ "chrono",
+ "rand 0.10.2",
  "sentinel-core",
+ "serde",
+ "serde_json",
  "sqlx",
  "thiserror 2.0.20",
  "tokio",
  "tracing",
+ "uuid",
 ]
 
 [[package]]
@@ -2313,8 +2318,14 @@ dependencies = [
 name = "sentinel-jobs"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "sentinel-core",
  "sentinel-db",
+ "serde_json",
+ "sqlx",
+ "thiserror 2.0.20",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]
