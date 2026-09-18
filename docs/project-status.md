@@ -232,13 +232,22 @@ offline JSON-RPC and WebSocket surface has full parity with everything Sentinel'
   this phase implemented and tested against directly. This is disclosed as a documentation-inventory
   finding, not treated as a blocking contradiction — no requirement was actually unspecified as a
   result.
-- **New in Phase 3**: while running the full workspace regression, `ts/packages/db`'s `npm test` and
-  `npm run build` both fail — `test`: `node --import tsx --test src/**/*.test.ts` reports no matching
-  files; `build`: `tsc` reports `Cannot find name 'Buffer'` (missing `@types/node`). Confirmed
-  pre-existing and untouched by this phase (`git status --short ts/` shows zero diff against the Phase
-  2 closure commit `cded9a2f`; `docs/phases/phase-03-rpc.md` §5 states this phase is Rust-only). Left
-  as-is per CLAUDE.md §7 ("no large speculative refactors... stay inside the current phase's scope") —
-  flagged here rather than silently absorbed or silently fixed.
+- **New in Phase 3**: `ts/packages/db`'s `npm test` fails: `"test": "node --import tsx --test
+  src/**/*.test.ts"` relies on the invoking shell to expand the `**` glob, but `npm` runs package
+  scripts via `sh -c`, and plain `sh` does not support `**` (globstar) — the literal, unexpanded string
+  is passed to `node --test`, which reports no matching files even though
+  `src/index.test.ts` genuinely exists and (run directly, bypassing the glob:
+  `npx tsx --test src/index.test.ts`) genuinely passes. Root-caused precisely, not merely observed: this
+  is a shell-portability bug in the `package.json` script itself, confirmed pre-existing and untouched by
+  this phase (`git status --short ts/` shows zero diff against the Phase 2 closure commit `cded9a2f`;
+  `docs/phases/phase-03-rpc.md` §5 states this phase is Rust-only). An **earlier check in this same
+  session** also reported `npm run build` failing with `Cannot find name 'Buffer'` — that was this
+  session's own transient state (dependencies, including `@types/node`, had not yet been installed via
+  `npm ci` in this session's shell); after `npm ci`, `npm run build` **succeeds cleanly** for every
+  package. Corrected here rather than left as a misleading first impression. Left unfixed per CLAUDE.md
+  §7 ("no large speculative refactors... stay inside the current phase's scope") since it is a
+  pre-existing TS-side script bug unrelated to Phase 3's Rust-only scope — flagged precisely rather than
+  silently absorbed, silently fixed, or left vaguely described.
 - Two organizational choices beyond the phase spec's literal file list (`crates/sentinel-rpc/src/{provider,
   pool,health,breaker,budget,capabilities,ws,fixtures,fault}.rs`), both disclosed rather than silent:
   `http.rs` (the real `HttpRpcProvider`, split out for single-responsibility rather than appended to the
@@ -1214,8 +1223,26 @@ assumed to work: a `solana_rpc_client::rpc_client::RpcClient::new(...)` was temp
 exact expected message); both reverted immediately after, `git status` confirmed clean, and the guards
 were re-run to confirm they pass again.
 
-TypeScript: `ts/packages/db`'s `npm test`/`npm run build` fail — confirmed pre-existing, `ts/` untouched
-by this phase (see Known Issues). Every other TS package is an empty-skeleton echo, as in Phase 1/2.
+TypeScript (after `npm ci` to install the pinned toolchain):
+
+```
+$ npx prettier --check .    → All matched files use Prettier code style!
+$ npx eslint .               → clean, zero errors
+$ npm run build              → tsc succeeds for every workspace package (an earlier in-session check
+                                that reported it failing was this session's own pre-`npm ci` state —
+                                see Known Issues for the correction)
+$ npm test                   → `@sentinel/db`'s `npm test` script itself fails (pre-existing
+                                `sh`-vs-`**`-glob bug, see Known Issues) but the same 4 tests genuinely
+                                pass when invoked directly: `npx tsx --test src/index.test.ts` →
+                                4 pass, 0 fail. Every other TS package is an empty-skeleton echo, as in
+                                Phase 1/2.
+$ npm audit                  → found 0 vulnerabilities
+```
+
+Real finding: the Node actually installed in this session's environment is `v20.19.5`, not the
+`v22.12.0` `docs/project-status.md`'s own Environment section records as independently measured for
+Phase 1 — an `EBADENGINE` warning on `npm ci`, not a hard failure. Unrelated to Phase 3's Rust-only
+scope; noted for whichever future phase next touches the TypeScript toolchain.
 
 ### Validated
 
