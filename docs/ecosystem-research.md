@@ -505,9 +505,20 @@ blockhash) and is not an architectural finding.
 
 **SR-7 is CLOSED.** No architectural finding was required — Sentinel's assumption that a local Surfpool
 cluster provides full parity with the required RPC/WS surface holds. This probe is committed as an
-automated test at `crates/sentinel-rpc/tests/surfpool_capability_probe.rs` so a future Surfpool upgrade
-that removes any of these 16 capabilities fails CI visibly instead of surfacing as a silent Phase 4+
-regression.
+automated test at `crates/sentinel-rpc/tests/surfpool_capability_probe.rs` (8 `#[tokio::test]`s, all
+passing against the live Compose stack) so a future Surfpool upgrade that removes any of these 16
+capabilities fails CI visibly instead of surfacing as a silent Phase 4+ regression.
+
+**Second, sharper finding from writing the committed Rust test (not just the `curl` probe above):**
+`solana-rpc-client` 4.2.2's nonblocking `RpcClient::get_block(slot)` — the plain, ergonomic method —
+does **not** set `maxSupportedTransactionVersion` at all (confirmed by reading its source: it forwards
+only an encoding, `json!([slot, encoding])`). This is a **stricter trap than §11 already states**: it
+is not enough to "always pass `maxSupportedTransactionVersion`" when calling the RPC directly — the
+official Rust client's convenience method silently omits it too, and would return a v1-transaction
+`-32015` failure with no compile-time warning. **Sentinel's rule going forward (binding on Phase 3+):
+`sentinel-rpc` must only ever call `get_block_with_config`/`get_transaction_with_config`, never the
+plain `get_block`/`get_transaction`, and `CI-NOMAXVER` should be read as also banning the plain method
+names**, not only a missing RPC option. The committed test uses the safe form.
 
 ---
 

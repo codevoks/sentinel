@@ -2351,12 +2351,25 @@ dependencies = [
 name = "sentinel-rpc"
 version = "0.1.0"
 dependencies = [
+ "futures-util",
  "sentinel-config",
  "sentinel-core",
+ "serde_json",
+ "solana-commitment-config",
+ "solana-hash",
+ "solana-keypair",
+ "solana-message",
+ "solana-pubkey 4.2.1",
  "solana-pubsub-client",
  "solana-rpc-client",
+ "solana-rpc-client-api",
+ "solana-signature",
+ "solana-signer",
+ "solana-system-interface 3.2.0",
+ "solana-transaction",
  "solana-transaction-status",
  "tokio",
+ "tokio-tungstenite",
 ]
 
 [[package]]

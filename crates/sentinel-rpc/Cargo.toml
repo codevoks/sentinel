@@ -15,3 +15,22 @@ solana-rpc-client = { workspace = true }
 solana-pubsub-client = { workspace = true }
 solana-transaction-status = { workspace = true }
 tokio = { workspace = true }
+
+[dev-dependencies]
+# Pulled transitively by solana-rpc-client already (see Cargo.lock); pinned
+# here explicitly only because the SR-7 capability probe builds and signs a
+# real transaction itself, rather than shelling out to the `solana` CLI.
+solana-keypair = "3.1.2"
+solana-pubkey = "4.2.1"
+solana-hash = "4.5.0"
+solana-message = "4.4.1"
+solana-transaction = "4.1.6"
+solana-system-interface = "3.2.0"
+solana-signer = "3.0.1"
+solana-signature = "3.4.1"
+solana-rpc-client-api = "4.2.2"
+solana-commitment-config = "3.1.1"
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
+tokio-tungstenite = "0.28"
+futures-util = "0.3"
+serde_json = { workspace = true }

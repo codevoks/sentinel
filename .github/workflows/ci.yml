@@ -96,6 +96,21 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+      # GitHub Actions `services:` cannot pass Surfpool the arguments it
+      # needs (--offline etc.), so it is started as a plain step instead —
+      # exactly the `docker run` this repo's own `infra/compose/docker-compose.local.yml`
+      # uses, pinned to the same verified 2026-09-18 version (SR-7).
+      - name: start Surfpool (offline)
+        run: |
+          docker run -d --name surfpool -p 127.0.0.1:8899:8899 -p 127.0.0.1:8900:8900 \
+            surfpool/surfpool:1.5.0 start --offline --no-tui --no-studio --ci --host=0.0.0.0
+          for i in $(seq 1 30); do
+            curl -sf -X POST -H 'content-type: application/json' \
+              -d '{"jsonrpc":"2.0","id":1,"method":"getVersion"}' http://127.0.0.1:8899 \
+              | grep -q solana-core && exit 0
+            sleep 1
+          done
+          echo "::error::Surfpool did not become healthy in time" && exit 1
       - name: apply migrations
         env:
           SENTINEL_DB_HOST: 127.0.0.1
@@ -152,6 +167,18 @@ jobs:
           cache-dependency-path: ts/package-lock.json
       - run: npm ci
         working-directory: ts
+      - name: start Surfpool (offline; pulled/started before the firewall goes up)
+        run: |
+          docker pull surfpool/surfpool:1.5.0
+          docker run -d --name surfpool -p 127.0.0.1:8899:8899 -p 127.0.0.1:8900:8900 \
+            surfpool/surfpool:1.5.0 start --offline --no-tui --no-studio --ci --host=0.0.0.0
+          for i in $(seq 1 30); do
+            curl -sf -X POST -H 'content-type: application/json' \
+              -d '{"jsonrpc":"2.0","id":1,"method":"getVersion"}' http://127.0.0.1:8899 \
+              | grep -q solana-core && exit 0
+            sleep 1
+          done
+          echo "::error::Surfpool did not become healthy in time" && exit 1
       - name: apply migrations (network still up for this one DB connection)
         env:
           SENTINEL_DB_HOST: 127.0.0.1

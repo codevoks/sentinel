@@ -160,21 +160,17 @@ check_nomathdup() {
 }
 
 # CI-NOMAXVER — getBlock/getTransaction without maxSupportedTransactionVersion
-# (docs/ecosystem-research.md §11, docs/implementation-handoff.md). Heuristic:
-# a file that calls get_block(/get_transaction( must also mention
-# max_supported_transaction_version somewhere in the same file.
+# (docs/ecosystem-research.md §11 and §12a's sharper Phase 1 finding: even
+# solana-rpc-client 4.2.2's plain `get_block`/`get_transaction` methods do
+# NOT set this field — confirmed by reading their source, not assumed).
+# Rule: the plain method names are banned outright; only the `_with_config`
+# forms, which force the caller to set the field explicitly, are permitted.
 check_nomaxver() {
-	local hits=""
-	while IFS= read -r -d '' f; do
-		if grep -qE '\.get_block\(|\.get_transaction\(' "$f" 2>/dev/null; then
-			if ! grep -q 'max_supported_transaction_version' "$f"; then
-				hits+="$f calls get_block/get_transaction without max_supported_transaction_version"$'\n'
-			fi
-		fi
-	done < <(find crates -name '*.rs' -print0 2>/dev/null)
+	local hits
+	hits=$(grep_code_only '\.get_block\(|\.get_transaction\(' crates)
 	if [ -n "$hits" ]; then
 		echo "$hits"
-		fail "CI-NOMAXVER: getBlock/getTransaction used without maxSupportedTransactionVersion"
+		fail "CI-NOMAXVER: plain get_block()/get_transaction() used — use get_block_with_config()/get_transaction_with_config() with maxSupportedTransactionVersion set explicitly"
 	else
 		pass "CI-NOMAXVER"
 	fi

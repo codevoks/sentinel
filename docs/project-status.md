@@ -94,7 +94,8 @@ correct; a crate with a fake `todo!()` pipeline is not").
 | Aegis conformance vectors (`AEGIS-CONF-01..06`) | 6 | 0 | 0 |
 | Off-chain Aegis invariants (`AEGIS-INV-01..08`) | 8 | 0 | 0 |
 | CI grep guards | 9 | **9** | **9** |
-| Phase 1 Rust unit/integration tests | — | **15** | **15** |
+| Phase 1 Rust unit/integration tests | — | **23** | **23** |
+| SR-7 capability probe tests (`crates/sentinel-rpc/tests/surfpool_capability_probe.rs`) | 16 methods | **8 test functions covering all 16** | **8/8** |
 | Phase 1 TypeScript tests | — | **1** (harness proof; rest are empty-skeleton packages) | **1** |
 | Benchmarks | 0 measured | 0 | — |
 
@@ -291,7 +292,8 @@ running 6 tests (sentinel-config) ... 6 passed; 0 failed
 running 4 tests (sentinel-core) ... 4 passed; 0 failed
 running 3 tests (sentinel-db, against live Postgres) ... 3 passed; 0 failed
 running 2 tests (sentinel-telemetry) ... 2 passed; 0 failed
-(all other crates: 0 tests — empty skeletons)
+running 8 tests (sentinel-rpc, SR-7 capability probe, against live Surfpool) ... 8 passed; 0 failed
+(all other crates: 0 unit tests — empty skeletons)
 
 $ cargo clippy --workspace --all-targets -- -D warnings
     Finished `dev` profile [unoptimized + debuginfo] target(s) in 1m 03s
@@ -360,7 +362,12 @@ faucet).
 | `logsSubscribe` (`mentions`) | WS | ✅ — notification fired with real logs |
 
 **16/16 present and correctly behaved. Zero architectural findings.** Full transcript:
-`docs/ecosystem-research.md` §12a.
+`docs/ecosystem-research.md` §12a. This was then re-verified with the real pinned Rust client
+(`solana-rpc-client`/`solana-pubsub-client` 4.2.2, not `curl`/Python) in the committed test suite,
+`crates/sentinel-rpc/tests/surfpool_capability_probe.rs` (8 tests, all passing), which additionally
+found and fixed a **sharper SR-7/CI-NOMAXVER finding**: the client's plain `get_block()` does not set
+`maxSupportedTransactionVersion` at all — only `get_block_with_config()` does. `CI-NOMAXVER` was
+strengthened accordingly to ban the plain method names outright (`docs/ecosystem-research.md` §12a).
 
 ### Failure injection — actually run, not merely written
 
@@ -401,16 +408,48 @@ $ docker exec compose-postgres-1 psql -U sentinel_bootstrap -d sentinel -c "\dn+
 | `build` | ✅ | `cargo build --workspace` and `npm run build` both pass (above) |
 | `fmt` | ✅ | `cargo fmt --all -- --check` and `npx prettier --check .` both pass |
 | `lint` | ✅ | `cargo clippy --workspace --all-targets -D warnings`, `scripts/ci-guards.sh`, `npx eslint .` all pass |
-| `test` | ✅ | `cargo test --workspace` (15 tests) + `npm test` (1 real + 6 honest no-op) all pass against live Postgres |
-| `no-network` | ✅ (defined; see below) | Not executed inside GitHub Actions from this session — see "NOT DONE" |
+| `test` | ✅ | `cargo test --workspace` (23 tests) + `npm test` (1 real + 6 honest no-op) all pass against live Postgres/Surfpool |
+| `no-network` | ✅ (defined) | **Dynamically verified locally**, not just reasoned about — see below |
 | `secret-scan` | ✅ | `scripts/ci-guards.sh`'s `CI-NOSECRET` check, run standalone |
 | `dependency-advisory-scan` | ✅ (defined) | `npm audit` run locally: **0 vulnerabilities**. `cargo audit` was not completed inside this session (see "NOT DONE") |
 
+### `no-network` job — real dynamic proof, not just a static argument
+
+This session has no sudo/root on the host (confirmed: `sudo -n true` requires a password), so the
+firewall could not be applied to the host directly. Instead, the exact mechanism the CI job uses —
+`iptables` egress blocking — was applied for real inside a disposable Linux container
+(`rust:1-bookworm`, matching the pinned toolchain exactly) attached to the same Docker network as the
+live Compose stack, with `NET_ADMIN`/`NET_RAW` capabilities (which Docker itself can grant without host
+sudo):
+
+```
+$ docker run -d --network sentinel --cap-add=NET_ADMIN --cap-add=NET_RAW ... rust:1-bookworm sleep 3600
+$ docker exec ... cargo build --workspace --tests --quiet   # network still up (dependency fetch)
+$ docker exec ... bash -c '
+    iptables -P OUTPUT DROP
+    iptables -A OUTPUT -o lo -j ACCEPT
+    iptables -A OUTPUT -d <postgres-container-ip> -j ACCEPT
+    iptables -A OUTPUT -d <surfpool-container-ip> -j ACCEPT
+    iptables -A OUTPUT -d 127.0.0.0/8 -j ACCEPT
+    curl -s --max-time 3 -o /dev/null -w "internet:%{http_code}\n" https://1.1.1.1
+  '
+internet:000        # confirmed BLOCKED — the firewall is real, not asserted
+$ docker exec ... cargo test -p sentinel-rpc --test surfpool_capability_probe -- --test-threads=1
+running 8 tests ... test result: ok. 8 passed; 0 failed
+```
+
+With the firewall active and a public IP genuinely unreachable, the SR-7 capability probe (which talks
+to Surfpool over the Docker network) still passed 8/8. This proves the actual claim ZC-1 makes — a
+required test suite works with no network beyond loopback/local services — **operationally**, not just
+by code review, even though the literal `.github/workflows/ci.yml` file has not been run by GitHub
+Actions itself.
+
 **Important limitation, stated plainly:** `.github/workflows/ci.yml` was authored and its YAML was
 validated to parse correctly, and every job's commands were run **locally** with real, passing output
-(pasted above). **The workflow itself has not been executed by GitHub Actions**, because this session
-has no push access to trigger it and no sandboxed GitHub Actions runner. This is the one piece of
-Phase 1 evidence that is design-plus-local-equivalent rather than "seen passing in CI," and it is
+(pasted above), including a real dynamic network-isolation test as described. **The workflow file
+itself has not been executed by GitHub Actions**, because this session has no push access to trigger it
+and no sandboxed GitHub Actions runner. This is the one piece of Phase 1 evidence that is
+local-dynamic-equivalent rather than "seen passing in GitHub's own infrastructure," and it is
 recorded here rather than glossed over (`AGENTS.md` §9).
 
 ---
