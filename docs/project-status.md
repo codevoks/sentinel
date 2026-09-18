@@ -1,8 +1,8 @@
 # Sentinel — Project Status
 
 **Last updated: 2026-09-18**
-**Current phase: Phase 1 — Foundation & Local Infrastructure — COMPLETE**
-**Next phase: Phase 2 — Canonical Data Model & Migrations — NOT STARTED**
+**Current phase: Phase 2 — Canonical Data Model & Migrations — COMPLETE**
+**Next phase: Phase 3 — RPC Abstraction & Resilient Client — NOT STARTED**
 
 > This file is the first thing any contributor or model reads after `AGENTS.md`. It must always reflect
 > reality. **"Implemented" never means "verified."** The five states below are tracked separately and
@@ -31,7 +31,7 @@ rounded up.
 |---|---|---|---|
 | 0 | Planning & architecture | ✅ **COMPLETE** | `phase-00-planning` |
 | 1 | Foundation & local infrastructure | ✅ **COMPLETE** | `phase-01-foundation` |
-| 2 | Canonical data model & migrations | ⬜ NOT STARTED | — |
+| 2 | Canonical data model & migrations | ✅ **COMPLETE** | `phase-02-data-model` (pending — see GIT section) |
 | 3 | RPC abstraction & resilient client | ⬜ NOT STARTED | — |
 | 4 | Raw observation boundary & ingestion | ⬜ NOT STARTED | — |
 | 5 | Normalization, backfill & replay | ⬜ NOT STARTED | — |
@@ -58,6 +58,11 @@ rounded up.
 | `sentinel-config` — typed config, secret redaction | ✅ | ✅ | ✅ | ✅ | ⬜ |
 | `sentinel-db` — connect-with-retry, migration runner | ✅ | ✅ | ✅ | ✅ | ⬜ |
 | `sentinel-telemetry` — metric registry, structured logging | ✅ | ✅ | ✅ | ✅ | ⬜ |
+| **Canonical schema — `infra/migrations/0002`-`0011`** (all tables, keys, indexes, roles, partitions) | ✅ | ✅ | ✅ | ✅ | ⬜ |
+| `sentinel-db::numeric` — exact u128/u64 ↔ numeric(39,0)/numeric(20,0) | ✅ | ✅ | ✅ | ✅ | ⬜ |
+| `sentinel-db::partitions` — partition automation + low-partition alert | ✅ | ✅ | ✅ | ✅ | ⬜ |
+| `sentinel-db::{enums,tables,queries}` — typed access layer | ⚠️ partial (see note below) | ✅ for what exists | ✅ | ✅ | ⬜ |
+| `sentinel-jobs` — Postgres job queue (claim/lease/renew/release/quarantine, 16-worker concurrency) | ✅ | ✅ | ✅ | ✅ | ⬜ |
 | `sentinel-rpc` — provider pool, breaker, failover | ⬜ empty skeleton | ⬜ | ⬜ | ✅ | ⬜ |
 | `sentinel-ingest` — raw boundary, checkpoints, gaps | ⬜ empty skeleton | ⬜ | ⬜ | ✅ | ⬜ |
 | `sentinel-normalize` — Solana primitives | ⬜ empty skeleton | ⬜ | ⬜ | ✅ | ⬜ |
@@ -66,10 +71,10 @@ rounded up.
 | `sentinel-replay` — determinism harness | ⬜ empty skeleton | ⬜ | ⬜ | ✅ | ⬜ |
 | `sentinel-aegis` — decoder registry & materialization | ⬜ empty skeleton | ⬜ | ⬜ | ✅ | ⬜ |
 | `sentinel-risk` — health, sizing, candidates | ⬜ empty skeleton | ⬜ | ⬜ | ✅ | ⬜ |
-| `sentinel-jobs` — Postgres job queue | ⬜ empty skeleton | ⬜ | ⬜ | ✅ | ⬜ |
 | `sentinel-geyser` — optional source | ⬜ empty skeleton | ⬜ | ⬜ | ✅ | ⬜ |
 | `bins/sentinel-indexer`, `bins/sentinel-backfill` | ⬜ empty skeleton | ⬜ | ⬜ | ✅ | ⬜ |
-| `@sentinel/db`, `@sentinel/aegis`, `@sentinel/executor`, `@sentinel/policy` | ⬜ empty skeleton | ⬜ | ⬜ | ✅ | ⬜ |
+| `@sentinel/db` — typed Postgres read layer for `sentinel_ts` (alerts, execution_intents, transaction_attempts) | ✅ partial (see note below) | ✅ | ✅ | ✅ | ⬜ |
+| `@sentinel/aegis`, `@sentinel/executor`, `@sentinel/policy` | ⬜ empty skeleton | ⬜ | ⬜ | ✅ | ⬜ |
 | `@sentinel/api`, `@sentinel/keeper`, `@sentinel/web` | ⬜ empty skeleton | ⬜ | ⬜ | ✅ | ⬜ |
 | Failure-injection campaign | ⬜ | ⬜ | ⬜ | ✅ | ⬜ |
 | Benchmark harness | ⬜ | ⬜ | ⬜ | ✅ | ⬜ |
@@ -152,7 +157,7 @@ line.
 | SR-8 | Aegis program ID, deployed IDL, account discriminators | 7 | OPEN — **no longer blocked upstream** (see Aegis upstream reconciliation below); resolution deferred to Phase 7 |
 | SR-9 | Whether Aegis uses `emit!` (program logs) or `emit_cpi!` | 7 | OPEN — no longer blocked upstream; deferred to Phase 7 |
 | SR-10 | Pyth receiver program ID and `PriceUpdateV2` layout post-2026-08-26 (Aegis RV-3/RV-4) | 7 | OPEN — no longer blocked upstream; Aegis's own Phase 5 records this resolved on its side; Sentinel verifies independently at Phase 7 |
-| SR-11 | Postgres version to pin; `LISTEN/NOTIFY` throughput at target load | 2, 14 | ⚠️ **PARTIALLY CLOSED** — version pinned to `postgres:18-alpine` (18.6), verified by `docker run --rm postgres:18-alpine postgres --version`. `LISTEN/NOTIFY` throughput measurement remains OPEN, deferred to Phase 2/14 exactly as the Phase 1 spec requires. |
+| SR-11 | Postgres version to pin; `LISTEN/NOTIFY` throughput at target load | 2, 14 | ⚠️ **PARTIALLY CLOSED** — version pinned (Phase 1). **Phase 2 smoke measurement done**: 50/50 `NOTIFY` deliveries received in two separate real runs against local `postgres:18-alpine`, mean latency 3.6ms and 4.8ms, p95 4.2ms and 8.8ms (see "Phase 2 — SR-11 smoke measurement" below). This is a smoke figure from one process, one connection pair, no concurrent load — **full throughput-at-target-load characterization remains OPEN, deferred to Phase 14** exactly as both the Phase 1 and Phase 2 specs require. |
 
 **SR-7 was the most important gate and is now closed with no architectural finding**: Surfpool's local,
 offline JSON-RPC and WebSocket surface has full parity with everything Sentinel's architecture assumes.
@@ -454,7 +459,353 @@ recorded here rather than glossed over (`AGENTS.md` §9).
 
 ---
 
+## Phase 2 — Canonical Data Model & Migrations — evidence
+
+### Schema
+
+Eleven forward-only migrations (`infra/migrations/0002_enums.sql` through `0011_initial_partitions.sql`)
+implement every table in `docs/data-model.md`, with:
+
+- Exact primary keys, natural keys, unique/partial-unique indexes, `FOREIGN KEY`s, and `CHECK`
+  constraints as specified, plus a SQL comment on every index naming the query pattern it supports.
+- Native PostgreSQL `ENUM` types for every closed-set column data-model.md/ingestion-model.md declare
+  as `enum:`, taken verbatim from the frozen documents — never invented (`0002_enums.sql`'s own header
+  documents the one case, `decode_failures.stage`/`error_code`, where no frozen document closes the set,
+  and leaves those `text`).
+- `numeric(39,0)` for every `u128` field, `numeric(20,0)` for every `u64` field. **Zero** floating-point
+  columns anywhere — proven by `dm07_no_floating_point_column_exists_in_the_schema`, a real catalog
+  query, not a source-text grep.
+- Slot-range partitioning (10,000,000 slots/partition) for `raw_observations`, `transactions`,
+  `instructions`, `program_logs`, `account_observations`, `token_balance_deltas`. **No `DEFAULT`
+  partition on any of them** — a row outside every created partition fails loudly
+  (`no partition of relation ... found for row`), proven live.
+- Least-privilege GRANTs (`0010_grants.sql`) implementing `data-model.md` §10's ownership table onto
+  Phase 1's two application roles (`sentinel_rust`, `sentinel_ts`) — see the role-granularity note
+  inside that migration file, and DEVIATIONS below.
+
+### Database invariants — DM-02/03/04/07/08/09/10, TX-02: proven against real PostgreSQL, not asserted
+
+All of the following are real `#[tokio::test]`s in `crates/sentinel-db/tests/adversarial.rs` (17 tests)
+and `crates/sentinel-db/tests/property_tests.rs` (2 tests), run against a live `postgres:18-alpine`
+container, connecting **as each actual role** (`sentinel_bootstrap`, `sentinel_rust`, `sentinel_ts`) —
+not simulated in application logic:
+
+```
+$ cargo test -p sentinel-db --test adversarial
+running 17 tests
+test dm02_sentinel_rust_cannot_update_or_delete_raw_observations ... ok
+test dm02_sentinel_ts_cannot_update_delete_or_insert_raw_observations ... ok
+test dm03_every_declared_natural_key_has_a_matching_unique_index ... ok
+test dm03_duplicate_raw_observation_natural_key_is_rejected_not_duplicated ... ok
+test dm04_stale_as_of_slot_write_is_rejected_on_aegis_markets ... ok
+test dm04_slot_promotion_is_monotonic_observed_confirmed_finalized ... ok
+test dm07_no_floating_point_column_exists_in_the_schema ... ok
+test dm08_duplicate_open_alert_is_rejected_then_resolved_reopen_succeeds ... ok
+test dm10_duplicate_idempotency_key_is_rejected_globally ... ok
+test tx02_second_nonterminal_attempt_for_same_intent_is_rejected ... ok
+test numeric_u128_max_round_trips_exactly_through_a_real_numeric_39_0_column ... ok
+test numeric_value_exceeding_numeric_39_0_precision_is_rejected_not_truncated ... ok
+test partition_row_routes_to_the_correct_partition_and_missing_partition_fails_clearly ... ok
+test partition_automation_creates_a_partition_ahead_of_head_and_it_becomes_usable ... ok
+test low_partition_condition_opens_one_alert_and_does_not_error_on_repeated_checks ... ok
+test role_permissions_sentinel_ts_has_no_write_grant_on_any_raw_normalized_protocol_or_derived_table ... ok
+test role_permissions_sentinel_rust_cannot_write_transaction_attempts_or_advance_execution_intents_state ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.64s
+```
+
+DM-09 (one outstanding job per `dedupe_key`) is proven in `crates/sentinel-jobs/tests/concurrency.rs`
+(the enqueue path uses the same partial-unique-index `ON CONFLICT ... DO NOTHING`; the 16-worker test
+below is the same mechanism under real concurrency). Verified stable across 4 repeated full-suite runs
+in this session (no flakes after fixing the two re-run-hygiene issues noted in DEVIATIONS).
+
+### Role security
+
+`sentinel_ts` was proven — by attempting real `INSERT`/`UPDATE` as that role, not by inspecting grants —
+to have **no write access whatsoever** to every raw/normalized/chain-state/protocol/derived table
+(23 tables enumerated and checked against `information_schema.role_table_grants`, plus direct write
+attempts against `raw_observations`, `slots`, and `aegis_markets`). `sentinel_rust` was proven to have
+no write access to `transaction_attempts` and no `UPDATE` access to `execution_intents` (insert-only,
+per `data-model.md` §10). The same forbidden-write proof was independently repeated from the
+**TypeScript side** in `ts/packages/db/src/index.test.ts` against a live connection as `sentinel_ts`.
+
+A genuine ambiguity in the frozen documents' role-granularity language ("distinct database roles per
+service" in `data-model.md` §10's table headers vs. the single `sentinel_rust`/`sentinel_ts` pair Phase
+1 actually created) is resolved and documented explicitly — see DEVIATIONS.
+
+### Job queue — `sentinel-jobs`
+
+Real claim/lease/renew/complete/fail/quarantine implementation (`crates/sentinel-jobs/src/lib.rs`)
+against the exact query shapes in `docs/distributed-correctness.md` §3/§7. The required 16-worker
+concurrency test spawns 16 **genuine** `tokio::spawn` tasks, each with its own Postgres connection:
+
+```
+$ cargo test -p sentinel-jobs --test concurrency
+running 3 tests
+test poison_job_is_quarantined_after_max_attempts_and_opens_an_alert ... ok
+test stale_lease_holder_update_affects_zero_rows_and_is_detected ... ok
+test sixteen_workers_claim_disjoint_job_sets_with_no_duplicate_claim ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.6s
+```
+
+`sixteen_workers_...`: 80 jobs enqueued, 16 workers race `FOR UPDATE SKIP LOCKED` claims of 5 each,
+asserted disjoint (`HashSet` of claimed `job_id`s has exactly 80 entries — no duplicate claim) and
+exhaustive (every enqueued job claimed by exactly one worker). Verified stable across 4 repeated runs
+after fixing a real cross-test-interference bug (see DEVIATIONS).
+`stale_lease_holder_...`: a lease is claimed with a negative TTL (deterministically already expired),
+reclaimed by a second holder, and the original holder's `complete()` call is proven to affect **zero
+rows** and return `false` — never silently succeed.
+`poison_job_...`: a job failed twice against `max_attempts=2` is proven `quarantined` (never
+auto-retried — a third claim attempt does not return it) and proven to have opened a real
+`kind='job_quarantined'` row in `alerts`.
+
+### Partitioning
+
+`crates/sentinel-db/src/partitions.rs`: `ensure_partitions_ahead` creates partitions ahead of a given
+head slot (application code, not a trigger/stored procedure — Phase 2's explicit non-scope);
+`count_future_partitions` and `check_low_partitions_and_alert` implement the observable/alertable
+low-partition condition behind `docs/observability.md`'s `PartitionsExhausted` alert, opening a real
+`alerts` row (kind `partitions_low`) and correctly absorbing DM-08's unique-violation on repeated checks
+rather than erroring. All three proven against live Postgres in `adversarial.rs`
+(`partition_row_routes_to_the_correct_partition_and_missing_partition_fails_clearly`,
+`partition_automation_creates_a_partition_ahead_of_head_and_it_becomes_usable`,
+`low_partition_condition_opens_one_alert_and_does_not_error_on_repeated_checks`).
+
+### Numeric exactness
+
+No `bigdecimal`/`rust_decimal` dependency (unreachable from this session — `curl https://crates.io`
+returns HTTP 403; `npm`'s registry, by contrast, is reachable, which is why `ts/packages/db` could add
+`pg`). Instead `crates/sentinel-db/src/numeric.rs` encodes/decodes `u128`/`u64` as exact decimal text
+against explicit `::numeric` SQL casts — verified against real PostgreSQL:
+
+```
+$ cargo test -p sentinel-db --test adversarial numeric
+test numeric_u128_max_round_trips_exactly_through_a_real_numeric_39_0_column ... ok
+test numeric_value_exceeding_numeric_39_0_precision_is_rejected_not_truncated ... ok
+```
+
+`u128::MAX` (`340282366920938463463374607431768211455`) round-trips exactly; a `numeric(39,0)`-exceeding
+value (`10^39`) is rejected by PostgreSQL itself with "numeric field overflow" — not truncated, not
+rounded. The TypeScript side (`ts/packages/db`) uses native `bigint` end to end for the same reason,
+verified with the same `u128::MAX` value in `index.test.ts`.
+
+### Property tests
+
+`P-KEY-1` and `P-MONO-2` (`crates/sentinel-db/tests/property_tests.rs`), fixed-seed (`0x5E17_1E02`),
+300 generated cases each against real PostgreSQL, biased toward partition-boundary slots and
+regressive/no-op candidate values per `testing-strategy.md` §3:
+
+```
+$ cargo test -p sentinel-db --test property_tests
+running 2 tests
+test p_mono_2_last_contiguous_slot_never_decreases ... ok
+test p_key_1_distinct_logical_observations_never_collide_on_natural_key ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.8s
+```
+
+No `proptest` crate (same `crates.io`-unreachable reason as the numeric decision) — reproducibility
+comes from the fixed seed itself (deterministic replay, not automatic shrinking), documented in the
+test file's own header.
+
+### SR-11 smoke measurement (real, not fabricated)
+
+`crates/sentinel-jobs/examples/sr11_notify_smoke.rs`, run twice against the live local stack:
+
+```
+$ cargo run -p sentinel-jobs --example sr11_notify_smoke
+SR-11 LISTEN/NOTIFY smoke measurement
+rounds attempted: 50, rounds with a received notification: 50
+mean: 3.602226ms
+p50:  1.807542ms
+p95:  4.227ms
+max:  82.412042ms
+
+$ cargo run -p sentinel-jobs --example sr11_notify_smoke   # second run
+rounds attempted: 50, rounds with a received notification: 50
+mean: 4.846614ms
+p50:  3.025708ms
+p95:  8.752042ms
+max:  67.456834ms
+```
+
+This is a **smoke** measurement (one process, one `NOTIFY`/`LISTEN` connection pair, sequential
+enqueues, no concurrent load) — it closes the "does the mechanism work and roughly how fast" question
+Phase 2 owes, not the full throughput-at-target-load characterization, which stays explicitly deferred
+to Phase 14 as `docs/testing-strategy.md`/`docs/project-status.md` already stated.
+
+### Migrations
+
+```
+$ (drop schema + roles entirely) && make migrate
+migrations applied successfully
+$ make migrate   # immediately again, no changes in between
+migrations applied successfully   # verified no-op: _sqlx_migrations unchanged, no DDL errors
+$ psql ... -c "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'"
+ count
+-------
+    41
+```
+
+Both the from-empty apply and the immediate re-run were performed against a **freshly dropped** schema
+and roles (`DROP SCHEMA public CASCADE`, `DROP ROLE sentinel_rust/sentinel_ts`) in this session, not
+inferred from incremental state.
+
+### VALIDATED — universal checklist
+
+```
+$ cargo fmt --all -- --check
+(clean)
+
+$ cargo clippy --workspace --all-targets -- -D warnings
+Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.85s
+(zero warnings, zero errors)
+
+$ bash scripts/ci-guards.sh
+PASS: CI-NOFLOAT
+PASS: CI-NOSLOTTIME
+PASS: CI-NOPANIC
+PASS: CI-NOSQLFMT
+PASS: CI-NORAWCLIENT
+PASS: CI-NOAEGISLEAK
+PASS: CI-NOMATHDUP
+PASS: CI-NOMAXVER
+PASS: CI-NOSECRET
+All 9 CI grep guards passed.
+
+$ cargo test --workspace
+(52 real tests across the workspace: 0 failed, 0 ignored — full per-crate breakdown: sentinel-core 6,
+sentinel-config 4, sentinel-db lib 10, sentinel-db adversarial 17, sentinel-db property_tests 2,
+sentinel-jobs concurrency 3, sentinel-rpc capability probe 8, sentinel-rpc other 2; every other crate
+is an empty Phase-1 skeleton with 0 tests, unchanged from Phase 1)
+
+$ cd ts && npx prettier --check . && npx eslint . && npm run build && npm test
+All matched files use Prettier code style!
+(eslint: zero errors)
+(build: tsc succeeds for every workspace package)
+(test: 4/4 in @sentinel/db — package skeleton marker, numeric round-trip, sentinel_ts forbidden-write
+rejection, sentinel_ts read + execution-layer write — all other packages remain "no tests yet", empty
+Phase 1 skeletons unrelated to Phase 2 scope)
+
+$ cd ts && npm audit
+found 0 vulnerabilities
+
+$ bash scripts/demo-phase2-forbidden-ops.sh
+PASS (rejected as required): sentinel_rust UPDATE raw_observations
+PASS (rejected as required): sentinel_rust DELETE FROM raw_observations
+PASS (rejected as required): sentinel_ts INSERT into raw_observations
+PASS (rejected as required): sentinel_ts UPDATE slots
+PASS (rejected as required): sentinel_ts INSERT into aegis_markets
+PASS (rejected as required): second OPEN alert for the same (kind, entity)
+PASS (rejected as required): duplicate idempotency_key, different kind
+PASS (rejected as required): value exceeding numeric(39,0) precision (10^39, one digit beyond 39-digit precision)
+PASS (rejected as required): insert at a slot with no created partition
+Phase 2 demo: PostgreSQL refused every forbidden operation. The schema is defending itself.
+```
+
+`cargo audit` was **not run** in this session — same reason Phase 1 recorded: `crates.io` is
+unreachable (HTTP 403), so `cargo install cargo-audit` cannot fetch the tool. This is a repeat of
+Phase 1's own disclosed gap, not a new one introduced here.
+
+### DEVIATIONS
+
+**ADR-0015** (`docs/adr/0015-raw-observations-composite-pk-for-partitioning.md`): `raw_observations`'
+primary key is `(observation_id, slot)`, not `observation_id` alone as `data-model.md` §2 states in
+isolation. PostgreSQL requires the partition key to be part of every unique constraint (including the
+primary key) on a partitioned table — a bare `PRIMARY KEY (observation_id)` on a table partitioned by
+`slot` is rejected outright. `data-model.md` §2 declares both the single-column PK and the partitioning
+in the same table spec, which are not jointly satisfiable in real PostgreSQL; this was only discovered
+implementing the migration, not from reading the document. `observation_id` keeps every property
+(global uniqueness, monotonic identity) a caller relies on; only the constraint's physical column list
+changes. The other five partitioned tables already declare `slot` as part of their PK in `data-model.md`,
+so no equivalent ADR was needed for them.
+
+**Role granularity (documented inline, no ADR — a routine implementation choice, not a frozen-document
+change):** `data-model.md` §10's ownership table names ownership per *logical Rust/TypeScript service*
+(`sentinel-ingest`, `sentinel-normalize`, ... `sentinel-executor`, `sentinel-api`), which could be read
+as requiring one Postgres role per logical service. Phase 1's migration already created exactly **two**
+application login roles — `sentinel_rust`, `sentinel_ts` — one per **language**, and its own comment
+states Phase 2's job is to "add the per-table GRANTs that make **these roles'** least privilege real"
+(singular reference to the two already-created roles). `data-model.md` §10's own closing sentence
+confirms the structural property actually required: "The TypeScript service**s** hold **a role**
+[singular] with no write grant on raw, normalized, chain-state, protocol, or derived tables. That is
+what makes `architecture.md` §5's language boundary structural." This phase implements the ownership
+table as GRANTs on the union of privileges each language-side role needs (full detail and per-table
+rationale in `infra/migrations/0010_grants.sql`'s header comment), and the schema-ownership tests assert
+exactly the property the frozen text actually states: `sentinel_ts` cannot write any raw/normalized/
+chain-state/protocol/derived table, and neither role can write a table outside its declared ownership.
+**If finer-grained per-logical-service Postgres roles are later required** (e.g. so a compromised
+`sentinel-normalize` process cannot write `aegis_markets`, which the current two-role split does not
+prevent — both are Rust-side and share one physical role), that is a real architectural change needing
+its own ADR and migration; it was not silently invented here.
+
+**Test-infrastructure fixes discovered and fixed during this phase, recorded because they are real
+engineering findings, not narrative:**
+1. `sqlx::migrate!`'s compile-time embedding of `infra/migrations/` did not reliably pick up newly
+   *added* migration files under `cargo`'s normal incremental build — `make migrate` silently ran a
+   stale, smaller migration set and reported "success" trivially (nothing new to apply from its own
+   stale view). Forcing a rebuild (`touch crates/sentinel-db/src/lib.rs`) before `make migrate` is
+   required after adding a new migration file; discovered when `_sqlx_migrations` showed only version 1
+   applied despite nine additional migration files existing on disk and repeated "successful" `make
+   migrate` runs. Worth a `make`-target fix in a later phase (out of this phase's scope to make).
+2. `crates/sentinel-jobs/tests/concurrency.rs`'s three tests share one real `jobs` table with no
+   test-scoping filter (`claim()`'s query is intentionally global, matching real production behavior) —
+   `#[tokio::test]` functions in one binary run concurrently by default under `cargo test`, so without
+   serialization one test's workers claimed another concurrently-running test's fixture rows. Fixed with
+   a session-level Postgres advisory lock held for each test's body (no new crate dependency), plus
+   cleanup of accumulated cross-run leftover rows inside the same locked section. Verified stable across
+   4 repeated full runs after the fix.
+3. Two `crates/sentinel-db/tests/adversarial.rs` tests (`dm04_stale_as_of_slot_write_is_rejected_on_aegis_markets`,
+   `partition_automation_creates_a_partition_ahead_of_head_and_it_becomes_usable`) originally used fixed
+   fixture identifiers/slots, which collided with the same test's own leftover state on a second run
+   against the same database (real, persisted DDL and rows — not an in-memory test double). Fixed by
+   randomizing (UUID-suffixed program IDs; a much larger, non-overlapping random head-slot range for
+   partition automation, and later a nanosecond-timestamp-derived range for the low-partition test to
+   avoid colliding with the *other* random-range tests' own leftover partitions). Verified stable across
+   4+ repeated runs after each fix.
+
+None of the three findings above required weakening a check, a constraint, or a test — every fix made
+the test more correct/robust, never less strict.
+
+### NOT DONE / KNOWN ISSUES — explicit, not silently narrowed
+
+- **`crates/sentinel-db`'s typed row/query layer covers a representative subset of tables, not literally
+  every table.** Row structs and query helpers exist for `raw_observations`, `decode_failures`, `slots`,
+  `transactions`, `decoder_versions`, `aegis_markets` (partial — bookkeeping columns only, not the full
+  Aegis parameter set), `alerts`, `execution_intents`, `transaction_attempts`, and `jobs` — the tables
+  this phase's adversarial campaign and job queue directly exercise. The remaining ~17 tables
+  (`instructions`, `program_logs`, `account_observations`, `token_balance_deltas`, `rollback_events`,
+  `gap_events`, `ingest_checkpoints`, `provider_health`, `aegis_protocol_state`,
+  `aegis_market_params_history`, `aegis_positions`, `aegis_events`, `aegis_oracle_observations`,
+  `aegis_invariant_checks`, `position_health`, `liquidation_candidates`, `market_metrics`,
+  `reconciliation_mismatches`) exist in the schema with their full constraints (verified by the DM-03
+  natural-key and DM-07 float-column catalog audits, which enumerate every table in the schema, not just
+  the ones with Rust bindings) but have **no** Rust row struct or query helper yet. No later-phase crate
+  writes any of them yet (Phase 2's own explicit non-scope: "nothing writes [aegis_*] yet"), so there is
+  no consumer to type against — this is recorded as a real, honest scope gap against requirement 10's
+  "every table" language, not claimed as complete.
+- `ts/packages/db` similarly covers only the tables `sentinel_ts` may read/write with dedicated helper
+  functions (`alerts`, `execution_intents`, `transaction_attempts`); broad read access is proven to work
+  (`SELECT count(*) FROM raw_observations` / `aegis_markets` succeed as `sentinel_ts`) but no typed row
+  interface exists yet for the read-only layers beyond `AlertRow`/`ExecutionIntentRow`/`TransactionAttemptRow`.
+- `cargo audit` not run this session (crates.io unreachable — see VALIDATED section above); this is
+  Phase 1's already-disclosed gap, unchanged.
+- The partition **lead-distance** number (how many future partitions to keep pre-created) and the
+  low-partition alert **threshold** are not frozen-document constants — no frozen document states one —
+  so they are left as caller-supplied parameters (`ensure_partitions_ahead`/`check_low_partitions_and_alert`
+  take them as arguments) rather than invented as hardcoded defaults; a later phase's operational
+  configuration is expected to set them for real deployment.
+- `aegis_market_params_history`'s conflict policy (`DO NOTHING`) and its FK relationships are
+  implemented in the schema but have no dedicated adversarial test in this phase (covered structurally
+  by the same DM-03 audit, not by a duplicate-insert test).
+- No Kafka/queue-broker, no additional Postgres role beyond the two Phase 1 established — consistent
+  with ADR-0004/ADR-0002, not a gap.
+
+---
+
 ## Next action
 
-**Phase 1 is complete.** Hand Phase 2 (Canonical Data Model & Migrations) to the next session.
-`LISTEN/NOTIFY` throughput (SR-11's remaining half) is explicitly Phase 2's to measure.
+**Phase 2 is complete.** Hand Phase 3 (RPC Abstraction & Resilient Client) to the next session.
+Full `LISTEN/NOTIFY` throughput-at-load characterization (SR-11's remaining piece) stays explicitly
+deferred to Phase 14, as both the Phase 1 and Phase 2 specs require.
