@@ -73,15 +73,20 @@ absorption.
 - Off-chain invariant checking becomes possible, which serves Aegis's own runbook R-2.
 
 **Negative**
-- **Sentinel is blocked upstream** at Phase 7 (needs Aegis ≥ 6) and Phase 11 (needs Aegis ≥ 9). Stated
-  as a hard dependency in the roadmap, with Phases 1–6 deliberately having no upstream dependency at
-  all so that work is never blocked on someone else's schedule.
+- **Sentinel was blocked upstream** at Phase 7 (needs Aegis ≥ 6) and Phase 11 (needs Aegis ≥ 9) as of
+  the 2026-09-04 research date, when Aegis was at Phase 0. **Status update, recorded in Sentinel
+  Phase 1 (2026-09-18):** Aegis has since completed its full roadmap through Phase 13 and published
+  `v0.1.0` (`codevoks/aegis-protocol`), so this dependency is no longer blocking — see
+  `docs/project-status.md` and `docs/aegis-integration.md` §2 for the verified reconciliation. Phases
+  1–6 deliberately had no upstream dependency at all, so work was never blocked on someone else's
+  schedule regardless; that property is unchanged and Phase 7/8/11 still do not start early.
 - Sentinel inherits Aegis's release cadence for `aegis-math` / `@aegis/sdk`. Mitigated by the pin and
   the interim conformance path.
 - A version-aware decoder is more machinery than a single decoder. It is the machinery the problem
   actually has.
-- SR-8 (program ID, IDL, discriminators), SR-9 (`emit!` vs `emit_cpi!`), and SR-10 (Pyth layout) are
-  **open and blocked upstream**. Recorded as gates, not guessed.
+- SR-8 (program ID, IDL, discriminators), SR-9 (`emit!` vs `emit_cpi!`), and SR-10 (Pyth layout) were
+  **open and blocked upstream** at the research date. The blocking artifacts now exist upstream; formal
+  verification and pinning remain **deferred to Phase 7**, not performed early.
 
 **Enforcement**
 - `AEGIS-CONF-01..06`, `AEGIS-PDA-01`, `AEGIS-VER-01/02`, `AEGIS-INV-01..08`.

@@ -67,28 +67,39 @@ would mean debugging the state machine and the economics simultaneously, using r
 
 ### 2.4 The ordering property that makes the whole sequence work
 
-**Phases 1–6 have zero upstream dependency on Aegis.** They are pure Solana infrastructure. Since Aegis
-is itself at Phase 0, this means roughly half of Sentinel can be built to completion regardless of
-Aegis's schedule — and the Aegis-dependent phases are all late and clearly gated.
+**Phases 1–6 have zero upstream dependency on Aegis.** They are pure Solana infrastructure. This means
+roughly half of Sentinel can be built to completion regardless of Aegis's schedule — and the
+Aegis-dependent phases were originally all late and clearly gated on an unimplemented upstream.
 
 ---
 
 ## 3. Cross-project dependencies on Aegis
 
-**As of 2026-09-04, Aegis is at Phase 0: planning complete, no code written.** Stated plainly rather
-than assumed away.
+> **Upstream status reconciled in Phase 1 (2026-09-18).** The line below was accurate at the Phase 0
+> research date (2026-09-04) and is now stale: Aegis has since completed its full planned roadmap
+> through Phase 13 and published `v0.1.0` (verified directly against `codevoks/aegis-protocol`: tags
+> `phase-01-foundation`..`phase-13-release`, `v0.1.0`; program ID `DbRhjkZV1QSxMj5AvrYdgVsyEz8nKhoCLnSLGSKsqaF9`
+> declared in `programs/aegis/src/lib.rs`; `crates/aegis-math` at `0.1.0`; `sdk/ts` publishing
+> `@aegis/sdk@0.1.0`). See `docs/project-status.md` §"Upstream (Aegis) dependency status" for the full
+> reconciliation. **This does not change Phase 1 scope or start the Aegis adapter** — Phase 7/8/11 are
+> reclassified below from upstream-blocked to ready-to-start-when-scheduled, but remain untouched until
+> their own phase begins.
+>
+> Original (2026-09-04) statement, preserved for record: "Aegis is at Phase 0: planning complete, no
+> code written."
 
-| Sentinel phase | Requires from Aegis | Status | Interim path |
+| Sentinel phase | Requires from Aegis | Status (as of 2026-09-18) | Interim path |
 |---|---|---|---|
 | 1–6 | **Nothing** | — | — |
-| 7 | Deployed program ID, IDL, discriminators, event layouts (Aegis Phases 2–6) | **BLOCKED** | Decoder written against the frozen spec, `source='spec'`; fixtures from a locally-built Aegis; SR-8/SR-9 must close before the phase can complete |
-| 8 | `aegis-math` crate (Aegis Phase 4–6) | **BLOCKED for the preferred path** | Implement per `economic-model.md` and prove against `AEGIS-CONF-01..06`, which are **frozen and available today** |
-| 11 | `@aegis/sdk` with `ix.ts` builders (Aegis Phase 9) | **BLOCKED** | None acceptable. Hand-building the `liquidate` instruction would create a second source of truth for the most dangerous instruction in the protocol (ADR-0001). **Phase 11 waits.** |
-| 15 | A running Aegis deployment for the demo | Follows from the above | Fixtures for everything except the live demo |
+| 7 | Deployed program ID, IDL, discriminators, event layouts (Aegis Phases 2–6) | **UNBLOCKED upstream** — artifacts exist in `codevoks/aegis-protocol` `v0.1.0`. Not started; begins at Phase 7. | No longer needed as a fallback; a locally-built Aegis or its published artifacts can be used when Phase 7 begins. SR-8/SR-9 to be closed at that time by reading the actual repository. |
+| 8 | `aegis-math` crate (Aegis Phase 4–6) | **UNBLOCKED** — `aegis-math` `0.1.0` exists. Not started; begins at Phase 8. | Preferred path (consume `aegis-math`) now available; the conformance-vector fallback is no longer required but remains valid. |
+| 11 | `@aegis/sdk` with `ix.ts` builders (Aegis Phase 9) | **UNBLOCKED** — `@aegis/sdk` `0.1.0` published under `sdk/ts`. Not started; begins at Phase 11. | No workaround needed; consume the real SDK when Phase 11 begins. |
+| 15 | A running Aegis deployment for the demo | **UNBLOCKED** | A locally-run Aegis (Surfpool-deployed) is now feasible for the live demo variant. |
 
-**Rule:** a blocked phase is **not** started with a substitute for the blocking artifact. It is
-reported as blocked, and the unblocked phases are done instead. Phase 11 in particular has no
-acceptable workaround, and inventing one would be exactly the drift `AGENTS.md` §3 forbids.
+**Rule, unchanged:** phases are still implemented in order, one at a time. Upstream no longer being
+blocked is not authorization to start Phase 7/8/11 early — `AGENTS.md` §5 governs regardless of
+upstream readiness. A blocked phase is still never started with a substitute for the blocking artifact;
+that rule simply has no more phases it currently applies to.
 
 ---
 

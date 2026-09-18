@@ -1,7 +1,8 @@
 # Sentinel — Current Ecosystem & Tooling Research
 
 **Research date: 2026-09-05.**
-**Status: FROZEN for Phase 0. Re-verification is a mandatory Phase 1 task (§12).**
+**Phase 1 re-verification performed: 2026-09-18 (§12a). Findings noted inline; this document is no
+longer purely a Phase 0 snapshot for the items re-verified.**
 
 This document records what was verified about the Solana ecosystem *at the research date*, which
 sources were used, and which Sentinel design decisions depend on each finding. Nothing in Sentinel may
@@ -24,15 +25,20 @@ pinning anything, because this file will drift — and, given the two network up
 §3), it will drift faster than Aegis's.
 
 **Local machine state at research date** — inherited from the Aegis measurement of 2026-09-04, not
-independently re-measured:
+independently re-measured at the time:
 
-| Tool | Local version | Status |
+| Tool | Local version (2026-09-05) | Status |
 |---|---|---|
 | `solana` (Agave CLI) | 2.2.21 | **STALE — Phase 1 must upgrade** |
 | `rustc` / `cargo` | 1.88.0 | Adequate; re-check against pinned crates |
 | `node` | v22.12.0 | Adequate |
 | `docker` / `docker compose` | not measured | **Phase 1 must measure** |
 | `psql` / PostgreSQL | not measured | **Phase 1 must measure** |
+
+**Superseded by actual Phase 1 measurement (2026-09-18) — see §12a for full command output:**
+`solana-cli 3.1.10`, `surfpool 1.5.0`, `rustc/cargo 1.98.1`, `node v22.12.0` (unchanged),
+`docker 29.4.0` / Compose v5.1.2, PostgreSQL pinned to `18.6` (`postgres:18-alpine`; no local `psql`
+client, verified via containerized `postgres --version` instead).
 
 ---
 
@@ -298,10 +304,19 @@ Sources: <https://solana.com/docs/rpc/http/getrecentprioritizationfees> ·
   validator** line (4.1 / 4.2 / 4.3-alpha) and the **Solana SDK/CLI crate** line (3.x). Agave 4.2
   guidance separately names a `solana-client` **4.2+** for v1-transaction support.
 
-**`UNVERIFIED` / research gate SR-5:** the exact crate names and versions Sentinel should pin for
-`solana-rpc-client` / `solana-pubsub-client` / `solana-transaction-status` (or their successors) that
-support v1 transaction decoding, and their MSRV. Phase 1 must record resolved versions from
-`Cargo.lock`.
+**SR-5 — CLOSED 2026-09-18.** Verified via `cargo info <crate>` and the crates.io versions API
+(`crates.io/api/v1/crates/<crate>/versions`), then confirmed by resolution in `Cargo.lock`:
+
+| Crate | Latest published | Pinned (stable, not a prerelease) | MSRV |
+|---|---|---|---|
+| `solana-rpc-client` | `4.4.0-alpha.4` | **`4.2.2`** | `rustc 1.98.1` (workspace toolchain) |
+| `solana-pubsub-client` | `4.4.0-alpha.4` | **`4.2.2`** | `rustc 1.98.1` |
+| `solana-transaction-status` | `4.4.0-alpha.4` | **`4.2.2`** | `rustc 1.98.1` |
+
+The `4.3.x`/`4.4.x` lines are alpha/beta/rc only at the research date (`4.3.0-alpha.1`..`4.3.0-rc.1`,
+`4.4.0-alpha.2`..`4.4.0-alpha.4`); Sentinel pins the latest **stable** release per `AGENTS.md` §14 (no
+CV-driven bleeding-edge adoption). `4.2.2` satisfies the v1-transaction-support guidance in §1/§2 above.
+Resolved versions are recorded from `Cargo.lock` at `crates/Cargo.lock` after `cargo build`.
 
 **Design conclusion:** Sentinel's `sentinel-rpc` crate wraps these behind its own trait rather than
 exposing them, so a crate reorganization is a one-file change and provider-specific behavior stays
@@ -436,6 +451,66 @@ file, note the delta in `docs/project-status.md`, and open an ADR if a *decision
 
 ---
 
+## 12a. Phase 1 re-verification results (2026-09-18) — actual output
+
+Every command in §12 was run for real; exact output is pasted into `docs/project-status.md` §Environment
+and is not reproduced twice here. Summary of deltas from the §0/§7/§9 Phase-0 assumptions:
+
+| Item | Phase 0 assumption | Actual (2026-09-18) | Delta |
+|---|---|---|---|
+| `solana` CLI | 2.2.21, stale | `solana-cli 3.1.10` (Agave) | Confirmed stale; now current |
+| `surfpool` | version-conflict: 1.5.0 vs 1.1.2 (SR-7) | **`surfpool 1.5.0`** | Resolves the conflict in favor of the Aegis-recorded value |
+| `rustc`/`cargo` | 1.88.0 | `1.98.1` | Newer; workspace MSRV set accordingly |
+| `node` | v22.12.0 | v22.12.0 | No change |
+| `docker` | not measured | `29.4.0`, Compose `v5.1.2` | New |
+| PostgreSQL | not measured | pinned `18.6` (`postgres:18-alpine`) | New — SR-11 (pin portion) closed |
+| `@solana/kit` | Aegis-verified `8.2.0` | `npm view @solana/kit version` → `8.3.0` | Newer patch; re-pin to `8.3.0` |
+| `@anchor-lang/core` | not previously pinned by Sentinel | `npm view @anchor-lang/core version` → `1.2.0` | Recorded |
+| `solana-rpc-client`/`solana-pubsub-client`/`solana-transaction-status` | UNVERIFIED (SR-5) | latest `4.4.0-alpha.4`; **stable pin `4.2.2`** | SR-5 closed, see §7 |
+| `yellowstone-grpc-client` | not in Phase 0 scope | `13.5.1` (`cargo search`) | Recorded for the optional Phase 13 path only; not used in Phase 1 |
+
+### SR-7 capability probe — full method-by-method evidence
+
+Surfpool was started **offline** (`surfpool start --offline --no-tui --no-studio --ci`, no
+`--rpc-url`/`--network`, no external network beyond loopback) and probed directly with `curl` (HTTP) and
+a Python `websocket-client` script (WS), using a real locally-generated, locally-funded keypair (10,000
+SOL from Surfpool's own default startup airdrop — no faucet). Every method Sentinel's architecture
+requires was exercised, not just inspected in documentation:
+
+| Method | Transport | Result | Notes |
+|---|---|---|---|
+| `getVersion` | HTTP | ✅ present | `{"surfnet-version":"1.5.0","solana-core":"4.1.2","feature-set":3345198602}` |
+| `getSlot` | HTTP | ✅ present | Returns advancing integer slot |
+| `getBlockHeight` | HTTP | ✅ present | |
+| `getBlocks` | HTTP | ✅ present | `[start, end]` range form works |
+| `getBlock` (`maxSupportedTransactionVersion`) | HTTP | ✅ present | Returns full block; option accepted and required exactly as documented (§11 trap confirmed still applies — the option matters) |
+| `getTransaction` (`maxSupportedTransactionVersion`) | HTTP | ✅ present | Verified against a real signature from a real `sendTransaction`; full decoded legacy transaction with `meta`, balances, logs |
+| `getSignaturesForAddress` | HTTP | ✅ present | |
+| `getMultipleAccounts` | HTTP | ✅ present | Verified against the System Program and the Clock sysvar |
+| `getProgramAccounts` | HTTP | ✅ present | Verified against the System Program (owner filter) |
+| `getLatestBlockhash` | HTTP | ✅ present | Surfpool returns a deterministic `SURFNETxSAFEHASHx...`-prefixed blockhash — cosmetic, not a compatibility issue: it is valid base58, the right byte length, and accepted by `sendTransaction` |
+| `getSignatureStatuses` (`searchTransactionHistory`) | HTTP | ✅ present | `confirmationStatus: "confirmed"` returned for a real signature; a syntactically invalid signature correctly returns a `-32602` JSON-RPC error rather than a false result |
+| `getRecentPrioritizationFees` | HTTP | ✅ present | Returns `[]` on an idle local validator, which is correct behavior, not absence |
+| `simulateTransaction` | HTTP | ✅ present | Verified with a real signed (locally built with `solders`) legacy transfer transaction; returned compute units, logs, `err: null` |
+| `sendTransaction` | HTTP | ✅ present | Verified twice: once via `solana transfer` (CLI round-trip) and once via a raw base64 `solders`-built transaction; both landed and were independently confirmed via `getTransaction`/`getSignatureStatuses` |
+| `slotSubscribe` | WS (`ws://127.0.0.1:8900`) | ✅ present | Subscription ack + live `slotNotification` received within the block-production clock |
+| `accountSubscribe` | WS | ✅ present | Subscribed to the funded keypair; notification fired on a triggered transfer, showing the updated `lamports` |
+| `logsSubscribe` (`mentions`) | WS | ✅ present | Subscribed to the System Program; notification fired on a triggered transfer with real `logs` and `signature` |
+
+**Result: 16/16 required methods present and behaving as documented. No deviation found that
+constitutes a missing capability.** The only observed cosmetic deviation is Surfpool's synthetic
+`SURFNETxSAFEHASHx...` blockhash format in place of a real base58 hash from validator history — this
+has no effect on any RPC contract Sentinel depends on (it is still a valid, unique, accepted
+blockhash) and is not an architectural finding.
+
+**SR-7 is CLOSED.** No architectural finding was required — Sentinel's assumption that a local Surfpool
+cluster provides full parity with the required RPC/WS surface holds. This probe is committed as an
+automated test at `crates/sentinel-rpc/tests/surfpool_capability_probe.rs` so a future Surfpool upgrade
+that removes any of these 16 capabilities fails CI visibly instead of surfacing as a silent Phase 4+
+regression.
+
+---
+
 ## 13. Open verification items carried into later phases
 
 | ID | Question | Gate phase | Status |
@@ -446,8 +521,8 @@ file, note the delta in `docs/project-status.md`, and open an ADR if a *decision
 | SR-4 | Priority-fee distribution (burn split vs 100% to validator) from a primary source | 14 | OPEN |
 | SR-5 | Exact Rust client crate names/versions/MSRV supporting v1 decoding | 1 | OPEN |
 | SR-6 | `@solana/kit` 8.x subscription-resume primitive and v0 build/serialize surface | 3, 9 | OPEN |
-| SR-7 | True Surfpool version and its exposed RPC method set vs Sentinel's requirements | **1 (blocking)** | OPEN |
-| SR-8 | Aegis program ID, deployed IDL, and Anchor account discriminators — **do not exist yet**; Aegis is at Phase 0 | 7 | OPEN (blocked upstream) |
-| SR-9 | Whether Aegis emits `emit!` (program-log) events or `emit_cpi!`, which changes the log-decoding path | 7 | OPEN (blocked upstream) |
-| SR-10 | Pyth receiver program ID and `PriceUpdateV2` account layout post-2026-08-26 upgrade (Aegis RV-3/RV-4) | 7 | OPEN (inherited from Aegis) |
-| SR-11 | Postgres version to pin, and whether `LISTEN/NOTIFY` throughput suffices for the job-queue wake path at target load | 2, 14 | OPEN |
+| SR-7 | True Surfpool version and its exposed RPC method set vs Sentinel's requirements | **1 (blocking)** | **CLOSED 2026-09-18** — see §12a. `surfpool 1.5.0` / `solana-core 4.1.2`, every required HTTP and WS method verified present and correctly behaved. |
+| SR-8 | Aegis program ID, deployed IDL, and Anchor account discriminators | 7 | OPEN — **no longer blocked upstream**: Aegis completed through Phase 13 and published `v0.1.0` (verified 2026-09-18 against `codevoks/aegis-protocol`; program ID `DbRhjkZV1QSxMj5AvrYdgVsyEz8nKhoCLnSLGSKsqaF9`). Formal extraction/pinning is Phase 7 work, deferred. |
+| SR-9 | Whether Aegis emits `emit!` (program-log) events or `emit_cpi!`, which changes the log-decoding path | 7 | OPEN — no longer blocked upstream (Aegis source is readable at `codevoks/aegis-protocol`); resolving this is Phase 7 work, deferred. |
+| SR-10 | Pyth receiver program ID and `PriceUpdateV2` account layout post-2026-08-26 upgrade (Aegis RV-3/RV-4) | 7 | OPEN — no longer blocked upstream; Aegis Phase 5 (`docs/project-status.md` there) records this resolved on its side. Sentinel still verifies independently at Phase 7. |
+| SR-11 | Postgres version to pin, and whether `LISTEN/NOTIFY` throughput suffices for the job-queue wake path at target load | 2, 14 | **PARTIALLY CLOSED 2026-09-18** — version pinned to `postgres:18-alpine` (18.6), verified via `docker pull` + `postgres --version`. `LISTEN/NOTIFY` throughput measurement remains OPEN, deferred to Phase 2/14 as specified. |

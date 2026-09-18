@@ -36,28 +36,43 @@ Aegis document is a design event, never a silent absorption.
 
 ## 2. Upstream status — what exists today
 
-**As of the research date, Aegis is at Phase 0: planning complete, zero code written.**
-(`aegis/docs/project-status.md`, 2026-09-04.)
+> **Reconciled in Sentinel Phase 1 (2026-09-18).** The paragraph below described reality at the
+> research date (2026-09-04), when Aegis was at Phase 0. It is now stale: **Aegis has completed its
+> full planned roadmap through Phase 13 and published `v0.1.0`.** Verified directly against the Aegis
+> repository (`codevoks/aegis-protocol`), not assumed from this note: `git tag` lists
+> `phase-01-foundation` through `phase-13-release` and `v0.1.0`; `docs/project-status.md` there states
+> "Current phase: Phase 13 ... COMPLETE. This is the final planned phase."; `programs/aegis/src/lib.rs`
+> declares program ID `DbRhjkZV1QSxMj5AvrYdgVsyEz8nKhoCLnSLGSKsqaF9`; `crates/aegis-math/Cargo.toml` is
+> at `0.1.0`; `sdk/ts/package.json` publishes `@aegis/sdk` `0.1.0`.
+>
+> **This reconciliation is a status correction only.** Per Phase 1's explicit scope, Sentinel does not
+> redesign around Aegis, does not begin the Aegis adapter, and does not touch Phase 7/8/11 early. The
+> table below is corrected so the next session does not re-derive stale blocked-upstream assumptions;
+> the actual pin, IDL extraction, and discriminator verification (SR-8/SR-9) are Phase 7 work and are
+> **not performed now**.
+>
+> Original (2026-09-04) statement, preserved for record: "As of the research date, Aegis is at Phase 0:
+> planning complete, zero code written." (`aegis/docs/project-status.md`, 2026-09-04.)
 
-Consequences Sentinel must state plainly rather than paper over:
+Consequences, corrected:
 
-| Artifact Sentinel needs | Exists? | Aegis phase that produces it | Sentinel gate |
+| Artifact Sentinel needs | Exists? (as of 2026-09-18) | Aegis phase that produced it | Sentinel gate |
 |---|---|---|---|
-| Program ID | **No** | 2 (deploy) | SR-8 — always configuration, never a constant |
-| Anchor IDL / Program Metadata entry | **No** | 1–2 | SR-8 |
-| Account discriminators | **No** (derivable from the IDL, not guessable) | 2 | SR-8 |
-| Event names + layouts | Named in the catalogue; byte layouts not yet fixed | 2–6 | SR-9 |
-| Whether events use `emit!` (program logs) or `emit_cpi!` | **Unknown** | 2 | SR-9 |
-| `aegis-math` crate | **No** | 1 (skeleton), 4–6 (complete) | Phase 7/8 dependency |
-| `@aegis/sdk` with `ix.ts` builders | **No** | 9 | Phase 10/11 dependency |
-| Shared JSON test vectors (`tests/vectors/*.json`) | **No** | 4+ | Conformance source |
-| A deployed market with real state | **No** | 2+ | Demo dependency |
+| Program ID | **Yes** — `DbRhjkZV1QSxMj5AvrYdgVsyEz8nKhoCLnSLGSKsqaF9` | 2 (deploy) | SR-8 — still always configuration, never a hardcoded constant; formal pin happens in Phase 7 |
+| Anchor IDL / Program Metadata entry | **Yes**, per Aegis Phase 9 (SDK/UI) | 1–2, 9 | SR-8 — extraction is Phase 7 work |
+| Account discriminators | **Yes** (derivable from the deployed IDL) | 2 | SR-8 — verification is Phase 7 work |
+| Event names + layouts | **Yes**, byte layouts fixed since Aegis Phase 2–6 | 2–6 | SR-9 — verification is Phase 7 work |
+| Whether events use `emit!` (program logs) or `emit_cpi!` | Resolvable by reading the Aegis source at Phase 7 time | 2 | SR-9 — not resolved now; deferred to Phase 7 |
+| `aegis-math` crate | **Yes** — `0.1.0`, `crates/aegis-math` | 1 (skeleton), 4–6 (complete) | Phase 7/8 dependency — now available |
+| `@aegis/sdk` with `ix.ts` builders | **Yes** — `@aegis/sdk` `0.1.0`, `sdk/ts` | 9 | Phase 10/11 dependency — now available |
+| Shared JSON test vectors (`tests/vectors/*.json`) | To be confirmed when Phase 7 reads the pinned revision | 4+ | Conformance source |
+| A deployed market with real state | Feasible locally via Surfpool deployment of the released program | 2+ | Demo dependency — no longer blocked |
 
-**Sentinel is therefore blocked upstream at Phase 7 (adapter) and Phase 11 (keeper) until Aegis
-reaches Phase 6 and Phase 9 respectively.** This is stated in `phase-roadmap.md` §3 as a hard
-cross-project dependency, with the interim path in §6 below. **Phases 1–6 of Sentinel have no upstream
-dependency at all** — they are pure Solana infrastructure — which is why the roadmap is ordered the way
-it is.
+**Sentinel is no longer blocked upstream at Phase 7 or Phase 11** — the artifacts both phases need now
+exist in `codevoks/aegis-protocol` `v0.1.0`. This does **not** change phase order or scope: `AGENTS.md`
+§5 still requires exactly one phase per session, and Phase 7/8/11 remain untouched until their turn.
+`phase-roadmap.md` §3 carries the same correction. **Phases 1–6 of Sentinel still have no upstream
+dependency at all** — this was always true regardless of Aegis's schedule.
 
 ---
 
