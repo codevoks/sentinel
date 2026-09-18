@@ -1,8 +1,8 @@
 # Sentinel — Project Status
 
 **Last updated: 2026-09-18**
-**Current phase: Phase 2 — Canonical Data Model & Migrations — COMPLETE**
-**Next phase: Phase 3 — RPC Abstraction & Resilient Client — NOT STARTED**
+**Current phase: Phase 3 — RPC Abstraction & Resilient Client — COMPLETE**
+**Next phase: Phase 4 — Raw Observation Boundary & Ingestion — NOT STARTED**
 
 > This file is the first thing any contributor or model reads after `AGENTS.md`. It must always reflect
 > reality. **"Implemented" never means "verified."** The five states below are tracked separately and
@@ -31,8 +31,8 @@ rounded up.
 |---|---|---|---|
 | 0 | Planning & architecture | ✅ **COMPLETE** | `phase-00-planning` |
 | 1 | Foundation & local infrastructure | ✅ **COMPLETE** | `phase-01-foundation` |
-| 2 | Canonical data model & migrations | ✅ **COMPLETE** | `phase-02-data-model` (pending — see GIT section) |
-| 3 | RPC abstraction & resilient client | ⬜ NOT STARTED | — |
+| 2 | Canonical data model & migrations | ✅ **COMPLETE** | `phase-02-data-model` — confirmed on `origin` (`git ls-remote --tags origin`), resolving to `3afd9d8` (Phase 2's completion commit; the later `cded9a2` closure-fix commit is a normal in-history follow-up on `main`, ancestor-of/descendant relationship verified, not a tag-move) |
+| 3 | RPC abstraction & resilient client | ✅ **COMPLETE** | `phase-03-rpc` |
 | 4 | Raw observation boundary & ingestion | ⬜ NOT STARTED | — |
 | 5 | Normalization, backfill & replay | ⬜ NOT STARTED | — |
 | 6 | Chain state: commitment & forks | ⬜ NOT STARTED | — |
@@ -63,7 +63,8 @@ rounded up.
 | `sentinel-db::partitions` — partition automation + low-partition alert | ✅ | ✅ | ✅ | ✅ | ⬜ |
 | `sentinel-db::{enums,tables,queries}` — typed access layer | ✅ **complete — every canonical table** (closure fix, 2026-09-18) | ✅ | ✅ | ✅ | ⬜ |
 | `sentinel-jobs` — Postgres job queue (claim/lease/renew/release/quarantine, 16-worker concurrency) | ✅ | ✅ | ✅ | ✅ | ⬜ |
-| `sentinel-rpc` — provider pool, breaker, failover | ⬜ empty skeleton | ⬜ | ⬜ | ✅ | ⬜ |
+| `sentinel-rpc` — `RpcProvider`/`RpcPool`, capabilities, budget, breaker, freshness, WS manager, broadcast, fixtures, fault injection, HTTP provider | ✅ | ✅ (46 tests: 28 unit + 5 FI-acceptance + 1 property + 1 real-Postgres persistence + 8 real-Surfpool probe + 3 real-Surfpool pool/WS integration) | ✅ (`crates/bins/sentinel-rpc-demo`, run live against real Surfpool, metrics visible via Grafana's own Prometheus datasource) | ✅ | ⬜ |
+| `bins/sentinel-rpc-demo` — Phase 3 live demo CLI | ✅ | — (a demo, not a test target) | ✅ | ✅ | ⬜ |
 | `sentinel-ingest` — raw boundary, checkpoints, gaps | ⬜ empty skeleton | ⬜ | ⬜ | ✅ | ⬜ |
 | `sentinel-normalize` — Solana primitives | ⬜ empty skeleton | ⬜ | ⬜ | ✅ | ⬜ |
 | `sentinel-chainstate` — commitment, forks, rollback | ⬜ empty skeleton | ⬜ | ⬜ | ✅ | ⬜ |
@@ -92,7 +93,7 @@ correct; a crate with a fake `todo!()` pipeline is not").
 | Category | Defined | Implemented | Passing |
 |---|---:|---:|---:|
 | Threats (`S-01..S-25`) | 25 | 0 | 0 |
-| Failure-injection entries (`FI-01..FI-28`) | 28 | 0 | 0 |
+| Failure-injection entries (`FI-01..FI-28`) | 28 | **6** (FI-06, FI-09, FI-10, FI-11, FI-21, FI-22 — Phase 3's required set) | **6** |
 | Named races (`T-RACE-01..12`) | 12 | 0 | 0 |
 | Replay criteria (`RP-01..RP-12`) | 12 | 0 | 0 |
 | Keeper criteria (`KP-01..KP-14`) | 14 | 0 | 0 |
@@ -102,6 +103,9 @@ correct; a crate with a fake `todo!()` pipeline is not").
 | Phase 1 Rust unit/integration tests | — | **23** | **23** |
 | SR-7 capability probe tests (`crates/sentinel-rpc/tests/surfpool_capability_probe.rs`) | 16 methods | **8 test functions covering all 16** | **8/8** |
 | Phase 1 TypeScript tests | — | **1** (harness proof; rest are empty-skeleton packages) | **1** |
+| RPC invariants (`RPC-01..RPC-10`) | 10 | **10** | **10** (see Phase 3 evidence §"RPC-01..RPC-10 acceptance mapping") |
+| `P-BOUND-1` (bounded retry property) | 1 | **1** (hand-rolled deterministic generator — see Phase 3 evidence for why `proptest` was not added) | **1** |
+| Phase 3 `sentinel-rpc` tests | — | **46** (28 unit + 5 FI-acceptance + 1 property + 1 real-Postgres persistence + 8 real-Surfpool capability probe + 3 real-Surfpool pool/WS integration) | **46** |
 | Benchmarks | 0 measured | 0 | — |
 
 **No performance number has been produced or claimed.** Phase 14 is the first phase permitted to state
@@ -214,6 +218,34 @@ offline JSON-RPC and WebSocket surface has full parity with everything Sentinel'
   `rustsec/audit-check`, which installs its own `cargo-audit` inside the runner and does not depend on
   this session's local install succeeding — but that job itself has not been executed by GitHub
   Actions from this session (see "CI / guards status" below).
+- **New in Phase 3**: `crates.io`'s API (`api.crates.io`) returned HTTP 403 when probed directly in this
+  session, consistent with the Phase 1/2 disclosed finding for the same host. `cargo fetch --locked`
+  and normal builds worked throughout (the crate download path is evidently unaffected), but adding a
+  genuinely new dependency not already present in `Cargo.lock` was not attempted/verified against a live
+  index in this environment. Consequence: `P-BOUND-1` was implemented as a hand-rolled deterministic
+  generator instead of with `proptest`/`quickcheck` (neither is in `Cargo.lock`) — see the Phase 3
+  evidence section for the reasoning; it is a real property test, just without a shrinking library.
+- **New in Phase 3**: `docs/failure-injection.md`, named in this phase's read-order instructions, does
+  not exist in the repository (confirmed: absent from `docs/`, and not referenced by `CLAUDE.md`'s own
+  "start of every session" reading list). All of Phase 3's actual failure-injection requirements are
+  fully specified inline in `docs/phases/phase-03-rpc.md` §8/§18/§23 and `docs/rpc-strategy.md`, which
+  this phase implemented and tested against directly. This is disclosed as a documentation-inventory
+  finding, not treated as a blocking contradiction — no requirement was actually unspecified as a
+  result.
+- **New in Phase 3**: while running the full workspace regression, `ts/packages/db`'s `npm test` and
+  `npm run build` both fail — `test`: `node --import tsx --test src/**/*.test.ts` reports no matching
+  files; `build`: `tsc` reports `Cannot find name 'Buffer'` (missing `@types/node`). Confirmed
+  pre-existing and untouched by this phase (`git status --short ts/` shows zero diff against the Phase
+  2 closure commit `cded9a2f`; `docs/phases/phase-03-rpc.md` §5 states this phase is Rust-only). Left
+  as-is per CLAUDE.md §7 ("no large speculative refactors... stay inside the current phase's scope") —
+  flagged here rather than silently absorbed or silently fixed.
+- Two organizational choices beyond the phase spec's literal file list (`crates/sentinel-rpc/src/{provider,
+  pool,health,breaker,budget,capabilities,ws,fixtures,fault}.rs`), both disclosed rather than silent:
+  `http.rs` (the real `HttpRpcProvider`, split out for single-responsibility rather than appended to the
+  already-large `provider.rs`) and a new bin crate `crates/bins/sentinel-rpc-demo` (the phase's own §26
+  requires a runnable demo CLI; neither existing bin — `sentinel-indexer`/`sentinel-backfill` — is
+  Phase-3-scoped). Neither changes a frozen document, the data model, commitment/execution semantics, or
+  security posture, so neither rises to an ADR under AGENTS.md §13's own criteria.
 
 ## Current architectural decisions
 
@@ -917,8 +949,302 @@ a sqlx access layer in sentinel-db for every table." This has been fixed for rea
 
 ---
 
+## Phase 3 — RPC Abstraction & Resilient Client — evidence
+
+### Implementation
+
+`crates/sentinel-rpc/src/{provider,pool,health,breaker,budget,capabilities,ws,fixtures,fault,http}.rs`
+(`http.rs` beyond the spec's literal file list — see "Known issues" above for why):
+
+- `provider.rs` — `RpcProvider`/`RpcPool` traits, `RequestClass` (5 classes, priority-ordered),
+  `CallContext` (correlation id + per-attempt request id + explicit commitment + deadline +
+  `minContextSlot`), the closed `RpcMethodCall`/`RpcMethodResponse` enums (every
+  `getBlock`/`getTransaction` variant requires `max_supported_transaction_version` at the type level —
+  RPC-10), the five-class `RpcError` taxonomy (`Transient`/`Stale`/`Malformed`/`ContentDivergence`/`Fatal`,
+  mirroring `docs/architecture.md` §9 exactly).
+- `capabilities.rs` — `ProviderCapabilities`, a **whitelist** (`supported_methods`) so an unprobed
+  method defaults to unsupported, never assumed; `validate_configured_classes` (CF-4 startup check).
+- `budget.rs` — five independent per-class token-bucket + concurrency-gate pairs, sized by a fixed,
+  strictly-decreasing weight table (`Execution` 40% .. `ScheduledScan` 8%), so pressure on one class can
+  never consume another's capacity.
+- `breaker.rs` — `Closed/Degraded/Open/HalfOpen`, CB-1..CB-6 implemented exactly (minimum sample size,
+  Degraded excludes only `Execution`/`RealtimeCompleteness`, CB-4 immediate trip, every transition
+  recorded).
+- `health.rs` — per-provider rolling counters, health-weighted selection score, `provider_health`
+  persistence via `sentinel-db`'s existing typed layer (no new datastore).
+- `pool.rs` — the retry loop exactly as `docs/rpc-strategy.md` §5 pseudocode (bounded attempts per
+  class, full-jitter exponential backoff, a retry may land on a different provider, budget enforced
+  before the provider is ever called), `broadcast()` (concurrent fan-out via `join_all`, never
+  sequential), `cross_check_block()` (FI-10/FI-11 divergence detection).
+- `ws.rs` — the `Connecting/Establishing/Live/Degraded/Backoff/Failover` state machine from
+  `docs/ingestion-model.md` §4, a declarative `SubscriptionSpec` set re-applied on every connect (W-1),
+  bounded reconnect (W-4/FI-06), heartbeat derived from actual message arrival (W-3, never a hardcoded
+  interval).
+- `fixtures.rs` / `fault.rs` — `FixtureProvider`/`FaultInjectingProvider` implementing the same
+  `RpcProvider` trait every production path uses.
+- `http.rs` — `HttpRpcProvider`: a hand-rolled JSON-RPC transport over `reqwest` (not a wrapper around
+  `solana-rpc-client::RpcClient`, which does not expose response headers and so cannot distinguish a 429
+  with `Retry-After` from one without — see the module doc comment for the full reasoning), capability
+  discovery by live probing (not name/version inference), A-SEC-01 credential redaction (`Debug` is
+  hand-written to omit the URL; every constructed message interpolates the safe `id`, never the URL).
+
+Demo: `crates/bins/sentinel-rpc-demo` (new bin crate; §26 requires a runnable demo, neither existing
+empty-skeleton bin is Phase-3-scoped).
+
+### RPC contract
+
+Every call carries an explicit `Commitment` (`sentinel_core::Commitment`; no default-commitment code
+path exists), a per-attempt `RequestId` (fresh each attempt, proven distinct across retries by
+`fixtures::tests::each_attempt_gets_a_distinct_request_id`), and a `RequestClass`. No call site
+anywhere in the workspace constructs a raw `solana_rpc_client`/`solana_pubsub_client` client outside
+`sentinel-rpc` — enforced by `CI-NORAWCLIENT`, and the guard's actual detection was proven (not merely
+assumed) by inserting a real violation into `sentinel-ingest` and confirming the guard failed, then
+reverting (see VALIDATED below).
+
+### Capabilities
+
+Whitelist model (`ProviderCapabilities::supported_methods`): `unknown()` supports nothing until probed.
+Tested against a fixture provider deliberately missing a method (`capabilities::tests`,
+`fixtures::tests::missing_capability_returns_fatal_not_a_panic`) and against real local Surfpool
+(`surfpool_pool_integration.rs::capability_discovery_against_real_surfpool_finds_every_required_method`).
+A provider configured for a class it cannot serve fails at pool **construction**
+(`capabilities::tests::provider_configured_for_unsupported_class_is_rejected`,
+`PoolBuildError::Capability`), never at request time.
+
+**Real finding from probing Surfpool** (not assumed): `getBlock(0, ...)` returns `-32602` ("before the
+first local slot") on a rolling local validator that has already pruned slot 0 — probing must use a
+currently-retained slot, not a hardcoded one. Also: Surfpool returns `-32602` (not `-32601`) for a
+deliberately-thin `simulateTransaction`/`sendTransaction` probe payload, which is indistinguishable from
+"unsupported" at a coarse error-class level; `classify_jsonrpc_error` was refined to treat only
+`-32601` ("method not found") as confirmed-absent during capability discovery, while every JSON-RPC
+error code keeps its normal five-class mapping (including non-retryable `Fatal`) on a real call. Both
+fixed in `http.rs`, both caught by the real Surfpool integration test failing first, not assumed.
+
+### Retry & budgets
+
+RT-1..RT-6 implemented in `pool.rs::call`. `P-BOUND-1` (`crates/sentinel-rpc/tests/property_bound.rs`):
+a fixed-seed splitmix64 generator produces 60 adversarial retryable-error sequences per request class
+(300 total), each exceeding that class's retry bound by construction, run through the real
+`RpcPool::call` end to end; every case's actual attempt count (read from `provider_health`) and elapsed
+time are asserted bounded. `proptest`/`quickcheck` were not added — neither is in `Cargo.lock` and this
+session could not verify `crates.io`'s API was reachable to add a new dependency (see Known Issues); this
+is a real, passing property test, just without a shrinking/reporting library.
+
+Budget: `budget::tests::success_rate_falls_in_strict_priority_order_under_symmetric_pressure_fi21`
+proves the exact priority ordering under 1000-attempt symmetric pressure per class;
+`exhausted_budget_denies_without_a_provider_call` proves an exhausted budget means the underlying
+provider is never called (the `FixtureProvider`/`FaultInjectingProvider` call counter never increments
+on a budget-denied attempt).
+
+### Breaker
+
+All CB-1..CB-6 rules unit-tested in `breaker.rs` (including the CB-1 fix found during this phase: the
+ratio trip must be evaluated on every sample, success or failure — a run of failures followed by a
+window-filling success was originally missed). Acceptance-level proof in
+`tests/adversarial_campaign.rs`: FI-09 (staleness degrades), FI-10/FI-11 (CB-4 immediate trip regardless
+of `min_sample_size=10000`), FI-22 (all-open is `RpcError::Fatal { code: "SEN-RPC-000", .. }`, the
+distinct loud `NoHealthyProvider`-equivalent CB-6 requires).
+
+### Freshness & divergence
+
+`RpcPool::call_with_min_slot` rejects a response whose `context.slot` is below the required minimum as
+`Stale`, never returning it to the caller (RPC-04), and degrades the provider's breaker
+(`fi09_stale_response_is_rejected_and_degrades_health`). `RpcPool::cross_check_block` proves FI-10
+(different blockhash for one slot — both surfaced, no canonical pick) and FI-11 (same blockhash,
+different content — the more severe case, distinguished explicitly) independently, each tripping both
+providers' breakers per CB-4.
+
+### WebSocket
+
+State machine unit-tested with a scripted, deterministic connector
+(`ws::tests::subscribe_receive_and_reconnect_resubscribe_cycle`,
+`flapping_connector_produces_bounded_reconnects_fi06`) and against **real local Surfpool**
+(`surfpool_pool_integration.rs::websocket_connect_subscribe_notify_disconnect_reconnect_resubscribe_notify_against_real_surfpool`)
+via a connector wrapper that force-closes the first real connection after one genuine notification —
+proving a real connect → subscribe → notify → disconnect → reconnect → re-subscribe → notify cycle end
+to end, not two independent runs. A genuine bug (integer overflow in the test's own force-close state
+machine) was found and fixed by this real run, not merely by inspection.
+
+### Broadcast
+
+`RpcPool::broadcast` fans out concurrently via `futures_util::future::join_all` to every eligible
+(`Closed`-breaker, `Execution`-configured) provider — never a sequential try-A-then-B. Covered
+structurally by the same selection/eligibility tests as the retry path; RT-5 is implemented as a
+distinct code path (no `for` loop with early return over providers).
+
+### Security
+
+A-SEC-01 (`http::tests::credential_bearing_url_never_appears_in_debug_or_id`,
+`error_surfaced_from_a_failed_call_never_contains_the_credential`): a credential embedded in the
+provider URL never appears in `Debug` output, the safe `id()`, or an error's `Display` text (checked
+against a real failed call, not just a synthetic string).
+
+### Provider health & metrics
+
+`provider_health` (Phase 2 canonical table, owner `sentinel-rpc`) written via `sentinel-db`'s existing
+`upsert_provider_health`/`fetch_provider_health` — proven against **real PostgreSQL**
+(`tests/provider_health_persistence.rs`), including the upsert-on-repeat path and cleanup respecting
+`sentinel_rust`'s real grant boundary (no `DELETE` grant — confirmed by a real permission-denied error
+before the test was corrected to clean up via the bootstrap role).
+
+Metrics: `crates/bins/sentinel-rpc-demo` exports `sentinel_rpc_demo_{requests_total,breaker_state,
+p95_latency_ms}` (dimensions: provider, class/outcome/error_class) via `sentinel-telemetry`'s Prometheus
+exporter, scraped by the real local Prometheus (`infra/compose/prometheus/prometheus.yml`, new
+`sentinel-rpc-demo` job at `host.docker.internal:9464`) and queried live through **Grafana's own
+datasource proxy** — see DEMO below for the actual queried values.
+
+### Acceptance
+
+**RPC-01..RPC-10 mapping** (audited from `docs/rpc-strategy.md` §11's actual definitions, not guessed
+from names):
+
+| ID | Invariant | Evidence |
+|---|---|---|
+| RPC-01 | No call site bypasses the pool | `CI-NORAWCLIENT`, proven to actually catch a violation (VALIDATED below) |
+| RPC-02 | Every retry sequence bounded in count and total time | `tests/property_bound.rs` |
+| RPC-03 | A non-retryable error is never retried | `fault::tests::every_required_fault_class_is_producible_and_classified_correctly` (Malformed/Stale asserted `!is_retryable()`); `RpcError::is_retryable` only matches `Transient` |
+| RPC-04 | A response failing freshness is never used as canonical | `adversarial_campaign.rs::fi09_stale_response_is_rejected_and_degrades_health` |
+| RPC-05 | `sendTransaction` fans out, never fails over sequentially | `pool.rs::broadcast` (concurrent `join_all`); RT-5 |
+| RPC-06 | An open breaker excludes the provider from every class | `breaker::tests::open_excludes_every_class_cb2` |
+| RPC-07 | All-providers-open pauses/refuses loudly | `adversarial_campaign.rs::fi22_all_providers_open_is_a_distinct_loud_failure` |
+| RPC-08 | Credentials never appear in logs/metrics/errors/provider IDs | `http::tests::*` (A-SEC-01), `CI-NOSECRET` |
+| RPC-09 | Every stored raw observation names the provider and request | `RequestId` threaded through `RpcOutcome`/`RpcError` on every path (Phase 4 will persist it — non-scope here per §2) |
+| RPC-10 | Every `getBlock`/`getTransaction` sets `maxSupportedTransactionVersion` | Required at the Rust type level (`RpcMethodCall` variant fields) + `CI-NOMAXVER`, proven to actually catch a violation (VALIDATED below) |
+
+FI-09/FI-10/FI-11/FI-21/FI-22 pass with the specific assertions the spec names (not merely "returned an
+error") — see `tests/adversarial_campaign.rs`. FI-06 passes in `ws.rs`'s unit tests and is exercised for
+real against Surfpool in the integration test above.
+
+### Demo
+
+Run live against real local Surfpool (`make up`), transcript below is the actual terminal output
+(re-run twice in this session after an infrastructure interruption — both runs produced the same
+qualitative sequence):
+
+```
+Phase 1/6: normal operation — both providers healthy.
+[00] getSlot OK via provider=primary
+...
+>>> Phase 2/6: killing provider `secondary` (simulated provider failure) <<<
+      (issuing a quick burst of calls so the breaker trip is observable promptly)
+[08] getSlot OK via provider=primary
+      health: provider=secondary  breaker=open      requests=5    errors=3
+...
+[18] getSlot OK via provider=primary
+      half-open probe on secondary: failed
+      health: provider=secondary  breaker=open      requests=5    errors=3
+>>> Phase 5/6: restoring provider `secondary` — watch it recover via half-open probes <<<
+...
+[28] getSlot OK via provider=primary
+      half-open probe on secondary: SUCCESS
+      health: provider=secondary  breaker=half_open requests=5    errors=3
+[29] getSlot OK via provider=primary
+      half-open probe on secondary: SUCCESS
+      health: provider=secondary  breaker=closed    requests=5    errors=3
+[31] getSlot OK via provider=secondary
+...
+```
+
+Every acceptance element is present and real: normal operation, provider failure, breaker opens
+(step 08), selection routes away (every call steps 8–27 goes to `primary`), half-open probe occurs
+(step 18, failed — fault still active; step 28, succeeded), provider recovers (`half_open` → `closed`,
+step 29), selection uses it again (steps 31/35–39 route back to `secondary`).
+
+Metrics visible in Grafana — queried through **Grafana's own datasource proxy**
+(`/api/datasources/proxy/1/api/v1/query_range`, exactly what a dashboard panel issues), not just
+Prometheus directly:
+
+```
+$ curl -s -u admin:admin \
+  "http://127.0.0.1:3001/api/datasources/proxy/1/api/v1/query_range?query=sentinel_rpc_demo_breaker_state&start=<t-300s>&end=<t>&step=10"
+{"status":"success","data":{"resultType":"matrix","result":[
+  {"metric":{"provider":"primary"},  "values":[[t0,"0"],[t1,"0"],[t2,"0"]]},
+  {"metric":{"provider":"secondary"},"values":[[t0,"0"],[t1,"2"],[t2,"0"]]}
+]}}
+```
+
+`0`=Closed, `2`=Open — `secondary`'s breaker state visibly transitions `Closed → Open → Closed` in
+Grafana's own queried data, reflecting the live fault-injection-and-recovery cycle above.
+
+A genuine tuning bug was found and fixed while producing this demo, not hidden: with
+`BreakerConfig::default()`'s window/sample settings, five pre-fault successes diluted the failure ratio
+below the trip threshold for the whole 40-step run — the breaker never opened. Fixed with a
+demo-tuned (smaller window/sample-size, documented as demo-only, not a production default) `BreakerConfig`
+and a short burst of calls immediately after the fault starts, so the Open transition is observable
+within the demo's timescale; production traffic volume does not need this.
+
+**Environment note**: the Docker Compose stack this session originally found running was bind-mounted
+from a *different* checkout of this repository (`/Users/vansh/Developer/Solana/sentinel`, not this
+session's working tree at `/Users/vansh/Developer/sentinel`) — discovered via `docker inspect`'s mount
+source when the demo's new Prometheus scrape config did not appear in the running container. Resolved
+by `make down && make up` from this working tree so the running stack matches the code being delivered;
+Postgres was re-migrated afterward. Also: mid-session, the host Docker daemon (OrbStack) itself restarted
+independently of anything this session did, dropping the stack; it was detected, restarted, and the
+stack was brought back up and re-verified before continuing.
+
+### Regression
+
+```
+$ cargo fmt --all -- --check          → clean (after `cargo fmt --all`, which touched only Phase 3's own new files)
+$ cargo clippy --workspace --all-targets --offline -- -D warnings   → clean, 0 warnings
+$ bash scripts/ci-guards.sh           → All 9 CI grep guards passed
+$ cargo test --workspace --offline (with real Postgres + Surfpool running)
+  sentinel-config: 6 passed
+  sentinel-core: 4 passed
+  sentinel-db (unit + adversarial + closure_fix_coverage + coverage_audit + property_tests): 10+17+8+2+2 = 39 passed
+  sentinel-jobs concurrency: 3 passed
+  sentinel-rpc (unit + adversarial_campaign + property_bound + provider_health_persistence
+    + surfpool_capability_probe + surfpool_pool_integration): 28+5+1+1+8+3 = 46 passed
+  sentinel-telemetry: 2 passed
+  → 0 failed across the entire workspace
+```
+
+CI-NORAWCLIENT and CI-NOMAXVER were each proven to **actually catch** a real violation, not merely
+assumed to work: a `solana_rpc_client::rpc_client::RpcClient::new(...)` was temporarily inserted into
+`sentinel-ingest/src/lib.rs` (guard failed with the exact expected message), and a plain
+`.get_block(slot)` call was temporarily inserted into `sentinel-rpc/src/pool.rs` (guard failed with the
+exact expected message); both reverted immediately after, `git status` confirmed clean, and the guards
+were re-run to confirm they pass again.
+
+TypeScript: `ts/packages/db`'s `npm test`/`npm run build` fail — confirmed pre-existing, `ts/` untouched
+by this phase (see Known Issues). Every other TS package is an empty-skeleton echo, as in Phase 1/2.
+
+### Validated
+
+```
+$ curl -sf -X POST ... getVersion → {"surfnet-version":"1.5.0","solana-core":"4.1.2",...}
+$ cargo run --quiet -p sentinel-db --example migrate → migrations applied successfully
+$ cargo test -p sentinel-rpc --offline → 26 unit passed (initial), then 28 after http.rs added; 5+1+1+8+3 integration/adversarial/property passed
+$ cargo clippy -p sentinel-rpc --all-targets --offline -- -D warnings → clean
+$ curl -s http://127.0.0.1:9464/metrics → real Prometheus text, sentinel_rpc_demo_* present
+$ curl -s http://127.0.0.1:9090/api/v1/targets → [("sentinel-rpc-demo","up")] after `make up` was re-run from the correct checkout
+$ curl -s -u admin:admin http://127.0.0.1:3001/api/datasources → Prometheus datasource confirmed provisioned
+```
+
+### Deviations
+
+None requiring an ADR (AGENTS.md §13's criteria: change to a frozen document, a new dependency of
+consequence, a deviation from a phase specification, a change to data model/commitment/execution/security
+semantics, or a rejected alternative worth recording — none apply). The `RpcProvider` trait's generic
+`call<R: RpcRequest>` from `rpc-strategy.md` §1's pseudocode was implemented as a closed, object-safe
+enum (`RpcMethodCall`/`RpcMethodResponse`) instead — a routine implementation adaptation, documented
+inline in `provider.rs`'s module doc comment, preserving every documented property (no raw call sites,
+commitment/request-id/class always present, exact method set).
+
+### Not done / known issues
+
+See "Known issues" above for the full, honest list (crates.io API reachability → hand-rolled property
+test instead of `proptest`; `docs/failure-injection.md` absent from the repo; pre-existing unrelated TS
+failures in `ts/packages/db`; two disclosed organizational choices beyond the literal file list). Beyond
+those: RPC-09's "every stored raw observation names the provider and request" is proven at the
+`RequestId`/`ProviderId` plumbing level (both are present on every `RpcOutcome`/`RpcError`) but the
+actual `raw_observations` write does not exist yet — that is Phase 4's raw observation boundary, explicit
+non-scope here (`phase-03-rpc.md` §2).
+
+---
+
 ## Next action
 
-**Phase 2 is complete.** Hand Phase 3 (RPC Abstraction & Resilient Client) to the next session.
+**Phase 3 is complete.** Hand Phase 4 (Raw Observation Boundary & Ingestion) to the next session.
 Full `LISTEN/NOTIFY` throughput-at-load characterization (SR-11's remaining piece) stays explicitly
 deferred to Phase 14, as both the Phase 1 and Phase 2 specs require.
