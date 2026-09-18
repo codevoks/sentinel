@@ -1,0 +1,19 @@
+{
+  "name": "@sentinel/api",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "echo \"@sentinel/api: no tests yet -- empty skeleton, Phase 9\""
+  },
+  "dependencies": {
+    "@sentinel/db": "0.1.0"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "@types/node": "22.20.3"
+  }
+}

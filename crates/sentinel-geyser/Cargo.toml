@@ -1,0 +1,15 @@
+[package]
+name = "sentinel-geyser"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "OPTIONAL (Phase 13) Yellowstone ObservationSource implementation. EMPTY SKELETON."
+
+[dependencies]
+sentinel-core = { workspace = true }
+sentinel-config = { workspace = true }
+sentinel-rpc = { workspace = true }
+sentinel-telemetry = { workspace = true }

@@ -1,0 +1,17 @@
+[package]
+name = "sentinel-ingest"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "Slot/tx/account/log ingestors, subscription manager, raw writer. EMPTY SKELETON — Phase 4."
+
+[dependencies]
+sentinel-core = { workspace = true }
+sentinel-config = { workspace = true }
+sentinel-db = { workspace = true }
+sentinel-rpc = { workspace = true }
+sentinel-jobs = { workspace = true }
+sentinel-telemetry = { workspace = true }

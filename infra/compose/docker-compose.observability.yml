@@ -1,0 +1,61 @@
+# The OTel Collector / Prometheus / Grafana stack, factored into its own
+# file per ADR-0014's compose layout so it can be brought up standalone.
+# `docker-compose.yml` includes this file, so `make up` gets all of it by
+# default; nothing here is on Sentinel's required test path (`make test`
+# never depends on Grafana rendering anything).
+services:
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.138.0
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./otel/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
+    ports:
+      - "127.0.0.1:4317:4317" # OTLP gRPC
+      - "127.0.0.1:4318:4318" # OTLP HTTP
+      - "127.0.0.1:8889:8889" # Prometheus exporter (scraped by the prometheus service)
+    # otel/opentelemetry-collector-contrib ships a distroless image with no
+    # shell and no HTTP client binary (verified 2026-09-18), so a
+    # container-level CMD/CMD-SHELL healthcheck cannot run. The health_check
+    # extension above still serves http://localhost:13133/ for an external
+    # check (e.g. `make verify-versions` or a human, from the host).
+    networks: [sentinel]
+
+  prometheus:
+    image: prom/prometheus:v3.7.3
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [sentinel]
+
+  grafana:
+    image: grafana/grafana:12.3.0
+    environment:
+      # Local-dev-only credential, loopback-bound (see infra/compose/README.md).
+      GF_SECURITY_ADMIN_PASSWORD: "admin"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3001:3000"
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    networks: [sentinel]
+
+volumes:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  sentinel:
+    name: sentinel

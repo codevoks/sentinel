@@ -1,0 +1,21 @@
+{
+  "name": "@sentinel/keeper",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "echo \"@sentinel/keeper: no tests yet -- empty skeleton, Phase 11\""
+  },
+  "dependencies": {
+    "@sentinel/executor": "0.1.0",
+    "@sentinel/policy": "0.1.0",
+    "@sentinel/aegis": "0.1.0"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "@types/node": "22.20.3"
+  }
+}

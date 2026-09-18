@@ -1,0 +1,47 @@
+# Local dev/test overlay (ADR-0014): adds Surfpool (the zero-cost local
+# cluster, ADR-0013) and optional Redis on top of docker-compose.yml.
+# `make up` uses docker-compose.yml + this file together.
+#
+# Redis is optional and never correctness-critical (ADR-0003): nothing in
+# `make test` depends on it being present, and the `redis` service below
+# can be removed entirely without breaking anything required.
+services:
+  surfpool:
+    # Version pinned and verified 2026-09-18 (docs/ecosystem-research.md
+    # §12a; SR-7 closed) against the image build matching the locally
+    # installed `surfpool 1.5.0` / `solana-core 4.1.2`.
+    image: surfpool/surfpool:1.5.0
+    command:
+      - "start"
+      - "--offline" # zero-cost local path (ADR-0013): no external RPC datasource
+      - "--no-tui"
+      - "--no-studio"
+      - "--ci"
+      - "--host=0.0.0.0" # binds inside the container network; published to 127.0.0.1 only below
+    ports:
+      - "127.0.0.1:8899:8899" # JSON-RPC
+      - "127.0.0.1:8900:8900" # WebSocket
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - >-
+          curl -sf -X POST -H 'content-type: application/json'
+          -d '{"jsonrpc":"2.0","id":1,"method":"getVersion"}'
+          http://127.0.0.1:8899 | grep -q solana-core
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    networks: [sentinel]
+
+  # Optional. See ADR-0003: no durable state, every value has a TTL, and
+  # Sentinel must run correctly with this service entirely absent.
+  redis:
+    image: redis:8-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "127.0.0.1:6379:6379"
+    networks: [sentinel]
+
+networks:
+  sentinel:
+    name: sentinel

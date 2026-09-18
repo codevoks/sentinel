@@ -1,0 +1,45 @@
+# Sentinel base stack (ADR-0014): Postgres plus the observability stack
+# (OTel Collector, Prometheus, Grafana) via `include`. `docker-compose.yml`
+# alone is enough for `make migrate`; add `docker-compose.local.yml` for
+# Surfpool and the full local dev/test loop (`make up`).
+#
+# Every port is published to 127.0.0.1 only (ADR-0013: no default
+# configuration value points at a non-loopback host).
+include:
+  - docker-compose.observability.yml
+
+services:
+  postgres:
+    # Version pinned and verified 2026-09-18 (docs/ecosystem-research.md
+    # §12a; SR-11 partial closure, docs/project-status.md).
+    image: postgres:18-alpine
+    environment:
+      # Bootstrap-only superuser for container init; application access
+      # goes through the least-privilege roles created by
+      # infra/migrations/0001_init.sql. Local/CI-only fixture credential
+      # (see infra/migrations/0001_init.sql for the same allowance applied
+      # to the app roles).
+      POSTGRES_USER: sentinel_bootstrap
+      POSTGRES_PASSWORD: sentinel_local_dev_only_bootstrap
+      POSTGRES_DB: sentinel
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      # postgres:18+ images store data under /var/lib/postgresql directly
+      # (pg_ctlcluster-compatible layout) rather than .../data — mounting at
+      # .../data as earlier Postgres images required makes the container
+      # refuse to start. Verified 2026-09-18 against the pinned image.
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sentinel_bootstrap -d sentinel"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    networks: [sentinel]
+
+volumes:
+  postgres-data:
+
+networks:
+  sentinel:
+    name: sentinel

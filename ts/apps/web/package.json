@@ -1,0 +1,15 @@
+{
+  "name": "@sentinel/web",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json --noEmit",
+    "test": "echo \"@sentinel/web: no tests yet -- empty skeleton, Phase 15\""
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "@types/node": "22.20.3"
+  }
+}

@@ -1,0 +1,17 @@
+[package]
+name = "sentinel-rpc"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "ObservationSource + RpcProvider traits, pool, health, breaker, failover. EMPTY SKELETON — Phase 3."
+
+[dependencies]
+sentinel-core = { workspace = true }
+sentinel-config = { workspace = true }
+solana-rpc-client = { workspace = true }
+solana-pubsub-client = { workspace = true }
+solana-transaction-status = { workspace = true }
+tokio = { workspace = true }

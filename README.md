@@ -3,10 +3,13 @@
 **A replayable Solana indexer and durable execution engine, built as the operational counterpart to
 [Aegis Protocol](https://github.com/codevoks/aegis-protocol).**
 
-> **STATUS: PHASE 0 — PLANNING COMPLETE. NO CODE HAS BEEN WRITTEN.**
-> This repository currently contains design documentation only. Implementation begins at Phase 1.
-> Nothing described below is implemented yet; see [`docs/project-status.md`](docs/project-status.md)
-> for the authoritative state of every component.
+> **STATUS: PHASE 1 — FOUNDATION & LOCAL INFRASTRUCTURE COMPLETE.**
+> The Rust and TypeScript workspace skeletons, the Compose-based local stack (Postgres, Surfpool, OTel
+> Collector, Prometheus, Grafana, optional Redis), the migration runner, typed configuration with
+> secret redaction, and telemetry foundations are implemented and tested. **No ingestion, no RPC
+> client, no decoding, no API routes, and no Aegis integration exist yet** — that is Phases 3–11, not
+> this one. See [`docs/project-status.md`](docs/project-status.md) for the authoritative, per-component
+> state (implemented/tested/demoed/documented/committed, tracked separately and honestly).
 
 ---
 
@@ -102,21 +105,30 @@ ADR and a measured adoption threshold** — not omitted by accident.
 
 ## Quickstart
 
-**Right now (Phase 0):** this repository is 100% documentation. A `git clone` reconstructs the entire
-project as it currently exists — there is no toolchain, dependency, or local-service state to
-regenerate, because no code has been written.
-
-**From Phase 1 onward:**
+**Right now (Phase 1):** `git clone` gets you a working local stack and a real (if mostly-empty) Rust
+and TypeScript workspace. Every command below has actually been run against this repository — see
+[`docs/project-status.md`](docs/project-status.md) for the pasted output.
 
 ```bash
-make up        # docker compose: postgres, surfpool, otel collector, grafana
-make migrate   # apply migrations
-make test      # full offline suite — no network, no secrets, no faucet
-make demo      # scripted end-to-end scenario
+make up               # docker compose: postgres, surfpool, otel collector, prometheus, grafana, redis
+make migrate           # apply migrations (bounded retry; fails clearly if Postgres is unreachable)
+make test              # cargo test --workspace — offline, no secrets, no faucet, no paid RPC
+make lint               # cargo clippy --workspace --all-targets -D warnings
+make fmt                # cargo fmt --all -- --check
+make verify-versions    # prints every real, currently-installed toolchain version
+```
+
+There is no `make demo` yet — there is nothing to demo until ingestion exists (Phase 4+).
+
+The TypeScript workspace builds, lints, and tests independently:
+
+```bash
+cd ts && npm install && npm run build && npm run lint && npm test
 ```
 
 The exact install commands, pinned versions, and verification steps are specified in
-[`docs/phases/phase-01-foundation.md`](docs/phases/phase-01-foundation.md).
+[`docs/phases/phase-01-foundation.md`](docs/phases/phase-01-foundation.md), and the real command output
+is recorded in [`docs/project-status.md`](docs/project-status.md).
 
 ## Relationship to Aegis
 
@@ -124,10 +136,12 @@ Sentinel is an **off-chain observer and executor**. Aegis remains authoritative 
 account ownership, PDA derivations, state transitions, health calculation, liquidation semantics,
 oracle validation, token compatibility, governance, and on-chain invariants.
 
-**Aegis is itself at Phase 0.** Sentinel's Phases 1–6 are deliberately ordered to have **zero** upstream
-dependency; Phases 7, 8 and 11 are gated on Aegis reaching Phases 6 and 9 respectively, and
-[`docs/project-status.md`](docs/project-status.md) tracks that gating honestly rather than working
-around it.
+**Aegis has completed its full planned roadmap through Phase 13 and published `v0.1.0`** (reconciled
+2026-09-18, verified directly against [`codevoks/aegis-protocol`](https://github.com/codevoks/aegis-protocol) —
+see [`docs/project-status.md`](docs/project-status.md) for the evidence). Sentinel's Phases 1–6 were
+always ordered to have **zero** upstream dependency regardless of Aegis's schedule; Phases 7, 8, and 11
+are no longer upstream-blocked, but per `AGENTS.md` §5 they still start only in their own turn, one
+phase per session — Phase 1 does not touch the Aegis adapter.
 
 ## Status and honesty
 
@@ -142,4 +156,4 @@ not eliminate.
 
 ## License
 
-MIT or Apache-2.0 (to be selected in Phase 1).
+[Apache-2.0](LICENSE).

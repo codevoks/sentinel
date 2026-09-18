@@ -1,0 +1,69 @@
+[workspace]
+resolver = "2"
+members = [
+  "crates/sentinel-core",
+  "crates/sentinel-config",
+  "crates/sentinel-db",
+  "crates/sentinel-rpc",
+  "crates/sentinel-ingest",
+  "crates/sentinel-normalize",
+  "crates/sentinel-chainstate",
+  "crates/sentinel-decode",
+  "crates/sentinel-aegis",
+  "crates/sentinel-risk",
+  "crates/sentinel-jobs",
+  "crates/sentinel-telemetry",
+  "crates/sentinel-replay",
+  "crates/sentinel-geyser",
+  "crates/bins/sentinel-indexer",
+  "crates/bins/sentinel-backfill",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.98.1"
+license = "Apache-2.0"
+repository = "https://github.com/codevoks/sentinel"
+publish = false
+
+# overflow-checks = true is required in release per Phase 1 spec (§6): Sentinel
+# processes financial quantities and a silent wraparound in release is worse
+# than the performance cost of checking for it.
+[profile.release]
+overflow-checks = true
+
+[workspace.dependencies]
+# --- internal crates ---
+sentinel-core = { path = "crates/sentinel-core" }
+sentinel-config = { path = "crates/sentinel-config" }
+sentinel-db = { path = "crates/sentinel-db" }
+sentinel-rpc = { path = "crates/sentinel-rpc" }
+sentinel-jobs = { path = "crates/sentinel-jobs" }
+sentinel-telemetry = { path = "crates/sentinel-telemetry" }
+sentinel-decode = { path = "crates/sentinel-decode" }
+sentinel-normalize = { path = "crates/sentinel-normalize" }
+sentinel-chainstate = { path = "crates/sentinel-chainstate" }
+sentinel-aegis = { path = "crates/sentinel-aegis" }
+sentinel-risk = { path = "crates/sentinel-risk" }
+sentinel-replay = { path = "crates/sentinel-replay" }
+
+# --- external, version-verified 2026-09-18 (docs/ecosystem-research.md §12a) ---
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "signal", "time"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+thiserror = "2.0.20"
+anyhow = "1.0.104"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json"] }
+sqlx = { version = "0.9.0", features = ["runtime-tokio", "postgres", "macros", "migrate", "chrono", "uuid"] }
+opentelemetry = "0.32.0"
+opentelemetry_sdk = { version = "0.32.1", features = ["rt-tokio"] }
+opentelemetry-prometheus = "0.32.0"
+prometheus = "0.14.0"
+uuid = { version = "1.26.1", features = ["v4", "serde"] }
+
+# --- Solana Rust client ecosystem, pinned stable per SR-5 closure (§12a) ---
+solana-rpc-client = "4.2.2"
+solana-pubsub-client = "4.2.2"
+solana-transaction-status = "4.2.2"

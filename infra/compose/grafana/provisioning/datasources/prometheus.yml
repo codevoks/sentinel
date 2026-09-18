@@ -1,0 +1,11 @@
+# Auto-provisions Prometheus as Grafana's default datasource so `make up`
+# produces a working dashboard target with zero manual clicks.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false

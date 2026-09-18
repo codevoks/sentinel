@@ -1,0 +1,13 @@
+[package]
+name = "sentinel-jobs"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "Postgres-backed job queue: claim, lease, retry, quarantine. EMPTY SKELETON — later phase."
+
+[dependencies]
+sentinel-core = { workspace = true }
+sentinel-db = { workspace = true }

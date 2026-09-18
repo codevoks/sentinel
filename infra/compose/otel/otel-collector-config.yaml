@@ -1,0 +1,41 @@
+# Minimal OTel Collector pipeline for local development (ADR-0014).
+# Phase 1 stands this up as infrastructure; no Sentinel process exports to
+# it yet (OTLP wiring is Phase 12, docs/observability.md). The Prometheus
+# exporter here lets Prometheus scrape whatever later phases send through
+# the collector without a config change.
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+exporters:
+  prometheus:
+    endpoint: 0.0.0.0:8889
+  debug:
+    verbosity: basic
+
+processors:
+  batch: {}
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions: [health_check]
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [prometheus, debug]
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [debug]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [debug]

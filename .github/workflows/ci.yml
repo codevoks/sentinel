@@ -1,0 +1,206 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Zero-cost, local-first architecture (ADR-0013): this workflow runs with
+# NO secrets configured. Any job that would need one is a bug in that job,
+# not a reason to add a secret.
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: build (Rust + TypeScript)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --workspace
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+          cache: "npm"
+          cache-dependency-path: ts/package-lock.json
+      - run: npm ci
+        working-directory: ts
+      - run: npm run build
+        working-directory: ts
+
+  fmt:
+    name: fmt (rustfmt + prettier)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: cargo fmt --all -- --check
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+          cache: "npm"
+          cache-dependency-path: ts/package-lock.json
+      - run: npm ci
+        working-directory: ts
+      - run: npx prettier --check .
+        working-directory: ts
+
+  lint:
+    name: lint (clippy + eslint + CI grep guards)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: CI grep guards (CI-NOFLOAT, CI-NOSLOTTIME, CI-NOPANIC, CI-NOSQLFMT,
+          CI-NORAWCLIENT, CI-NOAEGISLEAK, CI-NOMATHDUP, CI-NOMAXVER, CI-NOSECRET)
+        run: bash scripts/ci-guards.sh
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+          cache: "npm"
+          cache-dependency-path: ts/package-lock.json
+      - run: npm ci
+        working-directory: ts
+      - run: npx eslint .
+        working-directory: ts
+
+  test:
+    name: unit tests (against local Postgres, no external network)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: sentinel_bootstrap
+          POSTGRES_PASSWORD: sentinel_local_dev_only_bootstrap
+          POSTGRES_DB: sentinel
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U sentinel_bootstrap -d sentinel"
+          --health-interval 3s
+          --health-timeout 3s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: apply migrations
+        env:
+          SENTINEL_DB_HOST: 127.0.0.1
+          SENTINEL_DB_PORT: "5432"
+          SENTINEL_DB_USER: sentinel_bootstrap
+          SENTINEL_DB_PASSWORD: sentinel_local_dev_only_bootstrap
+          SENTINEL_DB_NAME: sentinel
+        run: cargo run --quiet -p sentinel-db --example migrate
+      - name: cargo test --workspace
+        env:
+          SENTINEL_TEST_DATABASE_URL: postgres://sentinel_bootstrap:sentinel_local_dev_only_bootstrap@127.0.0.1:5432/sentinel
+        run: cargo test --workspace
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+          cache: "npm"
+          cache-dependency-path: ts/package-lock.json
+      - run: npm ci
+        working-directory: ts
+      - run: npm test
+        working-directory: ts
+
+  no-network:
+    name: no-network (required suite with the network interface down except loopback)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: sentinel_bootstrap
+          POSTGRES_PASSWORD: sentinel_local_dev_only_bootstrap
+          POSTGRES_DB: sentinel
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U sentinel_bootstrap -d sentinel"
+          --health-interval 3s
+          --health-timeout 3s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # Everything that needs the real network (crate/npm downloads) happens
+      # BEFORE the firewall goes up. This mirrors a real clean-clone
+      # developer flow: fetch dependencies once, then run the required
+      # suite with no further network access (ADR-0013).
+      - run: cargo fetch --locked
+      - run: cargo build --workspace --tests
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+          cache: "npm"
+          cache-dependency-path: ts/package-lock.json
+      - run: npm ci
+        working-directory: ts
+      - name: apply migrations (network still up for this one DB connection)
+        env:
+          SENTINEL_DB_HOST: 127.0.0.1
+          SENTINEL_DB_PORT: "5432"
+          SENTINEL_DB_USER: sentinel_bootstrap
+          SENTINEL_DB_PASSWORD: sentinel_local_dev_only_bootstrap
+          SENTINEL_DB_NAME: sentinel
+        run: cargo run --quiet -p sentinel-db --example migrate
+      - name: block all outbound network except loopback (ADR-0013, ZC-1)
+        run: |
+          sudo iptables -I OUTPUT 1 -o lo -j ACCEPT
+          sudo iptables -I OUTPUT 2 -d 127.0.0.0/8 -j ACCEPT
+          sudo iptables -A OUTPUT -j REJECT
+      - name: prove the firewall is actually enforced (must fail)
+        run: |
+          if curl -sS --max-time 3 https://1.1.1.1 >/dev/null 2>&1; then
+            echo "::error::egress to a public IP succeeded — the no-network job is not actually offline"
+            exit 1
+          fi
+          echo "confirmed: outbound network beyond loopback is blocked"
+      - name: cargo test --workspace (offline; proves no test needs external network)
+        env:
+          SENTINEL_TEST_DATABASE_URL: postgres://sentinel_bootstrap:sentinel_local_dev_only_bootstrap@127.0.0.1:5432/sentinel
+        run: cargo test --workspace --offline
+      - name: npm test (offline)
+        run: npm test
+        working-directory: ts
+
+  secret-scan:
+    name: secret scan (CI-NOSECRET)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/ci-guards.sh
+
+  dependency-advisory-scan:
+    name: dependency advisory scan (cargo audit + npm audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: rustsec/audit-check@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+          cache: "npm"
+          cache-dependency-path: ts/package-lock.json
+      - run: npm ci
+        working-directory: ts
+      - run: npm audit --audit-level=high
+        working-directory: ts
